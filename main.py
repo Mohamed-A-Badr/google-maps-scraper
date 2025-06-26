@@ -2,6 +2,10 @@ import time
 from urllib.parse import quote_plus
 
 from selenium import webdriver
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    WebDriverException,
+)
 from selenium.webdriver.common.by import By
 from selenium.webdriver.edge.service import Service
 from selenium.webdriver.support import expected_conditions as EC
@@ -31,7 +35,7 @@ class Scraper:
 
         try:
             self.driver = webdriver.Edge(options=options, service=service)
-        except Exception as e:
+        except WebDriverException as e:
             raise RuntimeError(f"Failed to initialize Edge WebDriver: {e}")
 
     def open_url(self, url):
@@ -62,7 +66,7 @@ class Scraper:
             zoom_out_button = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.ID, "widget-zoom-out"))
             )
-        except Exception as e:
+        except NoSuchElementException as e:
             print(f"Error finding zoom out button: {e}")
             return
         zoom_out_button.click()
@@ -74,14 +78,60 @@ class Scraper:
                     (By.XPATH, "//button[@jsaction='search.refresh']")
                 )
             )
-        except Exception as e:
+        except NoSuchElementException as e:
             print(f"Error finding search area button: {e}")
             return
         search_area_button.click()
         print("Search area button clicked.")
 
+    def scrolling_search_results(self):
+        try:
+            feed = self.driver.find_element(By.XPATH, '//div[@role="feed"]')
+        except NoSuchElementException:
+            print("Error: Could not find results feed")
+            return
 
-run_scraper = Scraper()
-run_scraper.loading_search_results(
-    "مركز أشعة OR أشعة OR سينية OR radiology", 29.9827167, 31.23571
-)
+        scroll_pause_time = 1
+        scroll_attempts = 0
+        max_scroll_attempts = 10
+        last_height = self.driver.execute_script(
+            "return arguments[0].scrollHeight", feed
+        )
+        while scroll_attempts < max_scroll_attempts:
+            self.driver.execute_script(
+                "arguments[0].scrollTop = arguments[0].scrollHeight", feed
+            )
+            time.sleep(scroll_pause_time)
+
+            new_height = self.driver.execute_script(
+                "return arguments[0].scrollHeight", feed
+            )
+
+            if new_height == last_height:
+                scroll_attempts += 1
+                if scroll_attempts >= 3:
+                    break
+            else:
+                scroll_attempts = 0
+
+            last_height = new_height
+
+            current_results = len(
+                feed.find_elements(By.XPATH, './/a[contains(@href, "/maps/place")]')
+            )
+            if current_results == 0:
+                break
+
+            print(f"Scrolling... Found {current_results} results so far")
+
+
+if __name__ == "__main__":
+    scraper = Scraper()
+    search_query = "أشعة OR radiology OR سينية"
+    lat = 30.9632309
+    lng = 32.2477777
+
+    scraper.loading_search_results(search_query, lat, lng)
+    scraper.scrolling_search_results()
+
+    scraper.driver.quit()
