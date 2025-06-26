@@ -1,3 +1,6 @@
+import csv
+import json
+import os
 import re
 import time
 from urllib.parse import quote_plus
@@ -6,8 +9,8 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.common.exceptions import (
     NoSuchElementException,
-    WebDriverException,
     TimeoutException,
+    WebDriverException,
 )
 from selenium.webdriver.common.by import By
 from selenium.webdriver.edge.service import Service
@@ -21,7 +24,12 @@ class Scraper:
         Initializes the Scraper class and sets up the Edge WebDriver.
         """
         self.driver = None
+        self.search_query = "أشعة OR سينية OR radiology"
+        self.full_results = []
+        self.searched = {}
+
         self.setup_driver()
+        self.load_searched_places()
 
     def setup_driver(self):
         """
@@ -63,7 +71,7 @@ class Scraper:
         else:
             raise RuntimeError("Driver not initialized.")
 
-    def loading_search_results(self, search_query, lat, lng):
+    def loading_search_results(self, lat, lng):
         """
         Loads search results for a given query and coordinates in Google Maps.
 
@@ -72,7 +80,7 @@ class Scraper:
             lat (float): latitude for the search location
             lng (float): longitude for the search location
         """
-        encoded_query = quote_plus(search_query)
+        encoded_query = quote_plus(self.search_query)
         url = f"https://www.google.com/maps/search/{encoded_query}/@{lat},{lng},16z"
 
         self.open_url(url)
@@ -85,6 +93,7 @@ class Scraper:
             print(f"Error finding zoom out button: {e}")
             return
         zoom_out_button.click()
+        time.sleep(1)
         print("Zoom out button clicked.")
 
         try:
@@ -97,6 +106,7 @@ class Scraper:
             print(f"Error finding search area button: {e}")
             return
         search_area_button.click()
+        time.sleep(1)
         print("Search area button clicked.")
 
     def scrolling_search_results(self):
@@ -120,7 +130,6 @@ class Scraper:
             self.driver.execute_script(
                 "arguments[0].scrollTop = arguments[0].scrollHeight", feed
             )
-            time.sleep(scroll_pause_time)
 
             new_height = self.driver.execute_script(
                 "return arguments[0].scrollHeight", feed
@@ -134,6 +143,7 @@ class Scraper:
                 scroll_attempts = 0
 
             last_height = new_height
+            time.sleep(scroll_pause_time)
 
             current_results = len(
                 feed.find_elements(By.XPATH, './/a[contains(@href, "/maps/place")]')
@@ -165,6 +175,14 @@ class Scraper:
             rating = ""
             number_of_reviews = ""
             google_map_url = i.get("href")
+
+            if (
+                google_map_url in self.searched
+                and self.searched[google_map_url] == "done"
+            ):
+                print(f"Place {index + 1}/{len(results_feed)} already processed.")
+                continue
+            self.searched[google_map_url] = "done"
 
             self.open_url(google_map_url)
             print(f"Processing place {index + 1}/{len(results_feed)}")
@@ -240,6 +258,7 @@ class Scraper:
 
             places_data.append(
                 {
+                    "index": index + 1,
                     "title": title,
                     "address": address,
                     "phone": phone,
@@ -254,17 +273,87 @@ class Scraper:
 
         return places_data
 
+    def save_results(self, full_results):
+        """
+        Saves the scraped results to (json/csv) file.
+        """
+
+        # Save results to json file
+        data = []
+        if os.path.exists("places_data.json"):
+            try:
+                with open("places_data.json", "r", encoding="utf-8") as json_file:
+                    data = json.load(json_file)
+            except json.JSONDecodeError:
+                print("Error decoding JSON from places_data.json. Starting fresh.")
+                data = []
+
+        data.extend(full_results)
+        with open("places_data.json", "w", encoding="utf-8") as json_file:
+            json.dump(data, json_file, ensure_ascii=False, indent=4)
+
+        # Save results to csv file from json_file
+        columns = [
+            "index",
+            "title",
+            "address",
+            "phone",
+            "category",
+            "rating",
+            "number_of_reviews",
+            "website",
+            "booking_link",
+            "google_map_url",
+        ]
+        with open("places_data.csv", "a", newline="", encoding="utf-8-sig") as f:
+            print("Saving results to CSV...")
+            if not full_results:
+                print("No results to save")
+                return
+            writer = csv.DictWriter(f, fieldnames=columns)
+            if f.tell() == 0:
+                writer.writeheader()
+            for result in full_results:
+                writer.writerow(result)
+
+        print("Results saved to places_data.json and places_data.csv")
+
+        # Save already searched places to json file
+        with open("already_searched.json", "w", encoding="utf-8") as f:
+            json.dump(self.searched, f, ensure_ascii=False, indent=4)
+
+        print("Already searched places saved to already_searched.json")
+
+    def load_searched_places(self):
+        """
+        Loads already searched places from a JSON file.
+        """
+        print("*" * 50)
+        print("Loading already searched places from already_searched.json")
+        try:
+            with open("already_searched.json", "r", encoding="utf-8") as f:
+                self.searched = json.load(f)
+            print("Already searched places loaded successfully.")
+        except FileNotFoundError:
+            self.searched = {}
+            print("No previously searched places found. Starting fresh.")
+        except json.JSONDecodeError:
+            print("Error decoding JSON from already_searched.json. Starting fresh.")
+            self.searched = {}
+
+        print("*" * 50)
+
 
 if __name__ == "__main__":
     start_time = time.perf_counter()
     scraper = Scraper()
-    search_query = "أشعة OR radiology OR سينية"
-    lat = 30.0923898
-    lng = 31.3018828
+    lat = 29.952372
+    lng = 30.9062091
 
-    scraper.loading_search_results(search_query, lat, lng)
+    scraper.loading_search_results(lat, lng)
     scraper.scrolling_search_results()
-    scraper.scrape_results()
+    result = scraper.scrape_results()
+    scraper.save_results(result)
 
     print("total time taken:", time.perf_counter() - start_time)
     scraper.driver.quit()
