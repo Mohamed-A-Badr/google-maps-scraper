@@ -136,3 +136,14 @@ cython_debug/
 
 # VS Code settings
 .vscode/
+
+# Scraped data in json format
+*.json
+
+# Scraped data in csv format
+*.csv
+
+# Temporary files
+*.tmp
+
+
