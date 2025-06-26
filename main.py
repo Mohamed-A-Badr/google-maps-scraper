@@ -44,3 +44,44 @@ class Scraper:
             self.driver.get(url)
         else:
             raise RuntimeError("Driver not initialized.")
+
+    def loading_search_results(self, search_query, lat, lng):
+        """
+        Loads search results for a given query and coordinates in Google Maps.
+        Args:
+            search_query (str): search keywords for searching
+            lat (float): latitude for the search location
+            lng (float): longitude for the search location
+        """
+        encoded_query = quote_plus(search_query)
+        url = f"https://www.google.com/maps/search/{encoded_query}/@{lat},{lng},16z"
+
+        self.open_url(url)
+
+        try:
+            zoom_out_button = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "widget-zoom-out"))
+            )
+        except Exception as e:
+            print(f"Error finding zoom out button: {e}")
+            return
+        zoom_out_button.click()
+        print("Zoom out button clicked.")
+
+        try:
+            search_area_button = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//button[@jsaction='search.refresh']")
+                )
+            )
+        except Exception as e:
+            print(f"Error finding search area button: {e}")
+            return
+        search_area_button.click()
+        print("Search area button clicked.")
+
+
+run_scraper = Scraper()
+run_scraper.loading_search_results(
+    "مركز أشعة OR أشعة OR سينية OR radiology", 29.9827167, 31.23571
+)
