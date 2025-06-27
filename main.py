@@ -20,11 +20,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 class Scraper:
     def __init__(self):
-        """
-        Initializes the Scraper class and sets up the Edge WebDriver.
-        """
         self.driver = None
         self.search_query = "أشعة OR سينية OR radiology"
+        self.total_sectors = 0
         self.full_results = []
         self.searched = {}
 
@@ -32,11 +30,6 @@ class Scraper:
         self.load_searched_places()
 
     def setup_driver(self):
-        """
-        Initializes the Edge WebDriver with specific options.
-        Sets the driver to start maximized, disables extensions, and sets the log level.
-        Wraps driver initialization in try/except to provide clearer error messages.
-        """
         options = webdriver.EdgeOptions()
         options.add_argument("--start-maximized")
         options.add_argument("--log-level=3")
@@ -60,29 +53,14 @@ class Scraper:
             raise RuntimeError(f"Failed to initialize Edge WebDriver: {e}")
 
     def open_url(self, url):
-        """
-        Opens the specified URL in the Edge browser.
-
-        Args:
-            url (str): URL to open in the browser.
-        """
         if self.driver is not None:
             self.driver.get(url)
         else:
             raise RuntimeError("Driver not initialized.")
 
     def loading_search_results(self, lat, lng):
-        """
-        Loads search results for a given query and coordinates in Google Maps.
-
-        Args:
-            search_query (str): search keywords for searching
-            lat (float): latitude for the search location
-            lng (float): longitude for the search location
-        """
         encoded_query = quote_plus(self.search_query)
         url = f"https://www.google.com/maps/search/{encoded_query}/@{lat},{lng},16z"
-
         self.open_url(url)
 
         try:
@@ -94,7 +72,6 @@ class Scraper:
             return
         zoom_out_button.click()
         time.sleep(1)
-        print("Zoom out button clicked.")
 
         try:
             search_area_button = WebDriverWait(self.driver, 10).until(
@@ -107,11 +84,10 @@ class Scraper:
             return
         search_area_button.click()
         time.sleep(1)
-        print("Search area button clicked.")
 
     def scrolling_search_results(self):
         """
-        Scrolls through the search results feed to load more results.
+        Scroll through the search results feed to load more results.
         """
         try:
             feed = self.driver.find_element(By.XPATH, '//div[@role="feed"]')
@@ -130,7 +106,6 @@ class Scraper:
             self.driver.execute_script(
                 "arguments[0].scrollTop = arguments[0].scrollHeight", feed
             )
-
             new_height = self.driver.execute_script(
                 "return arguments[0].scrollHeight", feed
             )
@@ -151,29 +126,16 @@ class Scraper:
             if current_results == 0:
                 print("No results found.")
                 break
-            print(f"Scrolling... Found {current_results} results so far")
 
     def scrape_results(self):
         """
-        Scrape places data from the search results.
-
-        returns:
-            list: A list of dictionaries containing place data.
+        Scrape the results from the place's page and store them in full_results.
         """
         places_data = []
-
         soup = BeautifulSoup(self.driver.page_source, "html.parser")
         results_feed = soup.find_all("a", class_="hfpxzc")
 
         for index, i in enumerate(results_feed):
-            title = ""
-            address = ""
-            phone = ""
-            website = ""
-            booking_link = ""
-            category = ""
-            rating = ""
-            number_of_reviews = ""
             google_map_url = i.get("href")
 
             if (
@@ -182,46 +144,26 @@ class Scraper:
             ):
                 print(f"Place {index + 1}/{len(results_feed)} already processed.")
                 continue
-            self.searched[google_map_url] = "done"
 
+            self.searched[google_map_url] = "done"
             self.open_url(google_map_url)
             print(f"Processing place {index + 1}/{len(results_feed)}")
 
             card_data = BeautifulSoup(self.driver.page_source, "html.parser")
 
-            # NOTE: title
-            title = (
-                card_data.find("h1", class_="DUwDvf lfPIob").get_text()
-                if card_data.find("h1", class_="DUwDvf lfPIob")
-                else "N/A"
+            title = card_data.find("h1", class_="DUwDvf lfPIob")
+            address = card_data.find(
+                "div", class_="Io6YTe fontBodyMedium kR99db fdkmkc"
             )
-
-            # NOTE: address
-            address = (
-                card_data.find(
-                    "div", class_="Io6YTe fontBodyMedium kR99db fdkmkc"
-                ).get_text()
-                if card_data.find("div", class_="Io6YTe fontBodyMedium kR99db fdkmkc")
-                else "N/A"
-            )
-            # NOTE: phone number
             phone_button = card_data.find(
                 "button", attrs={"data-item-id": re.compile(r"phone:tel:")}
             )
-            phone = phone_button.attrs.get("aria-label") if phone_button else "N/A"
-
-            # NOTE: category
-            category = (
-                card_data.find(
-                    "button", {"jsaction": "pane.wfvdle17.category"}
-                ).get_text()
-                if card_data.find("button", {"jsaction": "pane.wfvdle17.category"})
-                else "N/A"
+            category_button = card_data.find(
+                "button", {"jsaction": "pane.wfvdle17.category"}
             )
-
-            # access place's card and get rating safely
             rating = "N/A"
             number_of_reviews = "N/A"
+
             try:
                 card = WebDriverWait(self.driver, 10).until(
                     EC.presence_of_element_located((By.XPATH, "//div[@role='main']"))
@@ -233,22 +175,16 @@ class Scraper:
                     rating = rating_element.get_attribute("aria-label").strip()
                 except NoSuchElementException:
                     rating = "N/A"
+            except TimeoutException:
+                pass
 
-            except TimeoutException as e:
-                print(f"Error finding main card: {e}")
-                rating = "N/A"
-                number_of_reviews = "N/A"
+            reviews_elements = card_data.find_all("span", {"dir": "ltr"})
+            if len(reviews_elements) > 1:
+                reviews_text = reviews_elements[1].get_text()
+                if re.match(r"^\(\d+\)$", reviews_text):
+                    number_of_reviews = reviews_text
 
-            # NOTE: number of reviews
-            number_of_reviews = (
-                card_data.find_all("span", {"dir": "ltr"})[1].get_text()
-                if len(card_data.find_all("span", {"dir": "ltr"})) > 1
-                else "N/A"
-            )
-            if not re.match(r"^\(\d+\)$", number_of_reviews):
-                number_of_reviews = "N/A"
-
-            # NOTE: links
+            website = booking_link = "N/A"
             links = card_data.find_all("a", class_="CsEnBe")
             for link in links:
                 if link.attrs.get("data-item-id") == "authority":
@@ -256,45 +192,59 @@ class Scraper:
                 if link.attrs.get("data-item-id") == "action:3":
                     booking_link = link.attrs.get("href")
 
-            places_data.append(
-                {
-                    "index": index + 1,
-                    "title": title,
-                    "address": address,
-                    "phone": phone,
-                    "category": category,
-                    "rating": rating,
-                    "number_of_reviews": number_of_reviews,
-                    "website": website,
-                    "booking_link": booking_link,
-                    "google_map_url": google_map_url,
-                }
-            )
+            if not any(
+                place["google_map_url"] == google_map_url for place in self.full_results
+            ):
+                places_data.append(
+                    {
+                        "title": title.get_text() if title else "N/A",
+                        "address": address.get_text() if address else "N/A",
+                        "phone": (
+                            phone_button.attrs.get("aria-label")
+                            if phone_button
+                            else "N/A"
+                        ),
+                        "category": (
+                            category_button.get_text() if category_button else "N/A"
+                        ),
+                        "rating": rating,
+                        "number_of_reviews": number_of_reviews,
+                        "website": website,
+                        "booking_link": booking_link,
+                        "google_map_url": google_map_url,
+                    }
+                )
 
-        return places_data
+        self.full_results.extend(places_data)
+        print(f"Scraped {len(places_data)} places.")
 
-    def save_results(self, full_results):
-        """
-        Saves the scraped results to (json/csv) file.
-        """
-
-        # Save results to json file
+    def save_results(self):
         data = []
+        existing_urls = set()
         if os.path.exists("places_data.json"):
             try:
                 with open("places_data.json", "r", encoding="utf-8") as json_file:
                     data = json.load(json_file)
+                    existing_urls = {
+                        entry["google_map_url"]
+                        for entry in data
+                        if "google_map_url" in entry
+                    }
             except json.JSONDecodeError:
                 print("Error decoding JSON from places_data.json. Starting fresh.")
                 data = []
 
-        data.extend(full_results)
+        unique_results = [
+            res
+            for res in self.full_results
+            if res["google_map_url"] not in existing_urls
+        ]
+        data.extend(unique_results)
+
         with open("places_data.json", "w", encoding="utf-8") as json_file:
             json.dump(data, json_file, ensure_ascii=False, indent=4)
 
-        # Save results to csv file from json_file
         columns = [
-            "index",
             "title",
             "address",
             "phone",
@@ -305,56 +255,103 @@ class Scraper:
             "booking_link",
             "google_map_url",
         ]
-        with open("places_data.csv", "a", newline="", encoding="utf-8-sig") as f:
-            print("Saving results to CSV...")
-            if not full_results:
-                print("No results to save")
-                return
-            writer = csv.DictWriter(f, fieldnames=columns)
-            if f.tell() == 0:
-                writer.writeheader()
-            for result in full_results:
-                writer.writerow(result)
+        if unique_results:
+            with open("places_data.csv", "a", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(f, fieldnames=columns)
+                if f.tell() == 0:
+                    writer.writeheader()
+                for result in unique_results:
+                    writer.writerow(result)
+            print(f"{len(unique_results)} new unique places saved to CSV and JSON.")
+        else:
+            print("No new unique results to save.")
 
-        print("Results saved to places_data.json and places_data.csv")
+        searched_data = {}
+        if os.path.exists("already_searched.json"):
+            with open("already_searched.json", "r", encoding="utf-8") as f:
+                try:
+                    searched_data = json.load(f)
+                except json.JSONDecodeError:
+                    searched_data = {}
 
-        # Save already searched places to json file
+        searched_data.update(self.searched)
         with open("already_searched.json", "w", encoding="utf-8") as f:
-            json.dump(self.searched, f, ensure_ascii=False, indent=4)
+            json.dump(searched_data, f, ensure_ascii=False, indent=4)
 
         print("Already searched places saved to already_searched.json")
+        self.searched.clear()
+        self.full_results.clear()
 
     def load_searched_places(self):
-        """
-        Loads already searched places from a JSON file.
-        """
         print("*" * 50)
         print("Loading already searched places from already_searched.json")
         try:
             with open("already_searched.json", "r", encoding="utf-8") as f:
                 self.searched = json.load(f)
             print("Already searched places loaded successfully.")
-        except FileNotFoundError:
+        except (FileNotFoundError, json.JSONDecodeError):
             self.searched = {}
             print("No previously searched places found. Starting fresh.")
-        except json.JSONDecodeError:
-            print("Error decoding JSON from already_searched.json. Starting fresh.")
-            self.searched = {}
-
         print("*" * 50)
+
+    def restart_browser(self):
+        if self.driver:
+            self.driver.quit()
+        self.save_results()
+        self.setup_driver()
+        self.load_searched_places()
+        print("=" * 50)
+        print("Browser restarted and searched places reloaded.")
+        print("=" * 50)
+
+    def move_over_sectors(
+        self, min_lat, max_lat, min_lng, max_lng, lat_step=0.03, lng_step=0.05
+    ):
+        lat = min_lat
+        sectors = 0
+        num_of_sectors_before_pause = 20
+        num_of_sectors_before_restarting = 5
+        while lat <= max_lat:
+            lng = min_lng
+            while lng <= max_lng:
+                print(f"Searching sector {sectors + 1}: Lat {lat}, Lng {lng}")
+                self.loading_search_results(lat, lng)
+                self.scrolling_search_results()
+                self.scrape_results()
+
+                lng += lng_step
+                sectors += 1
+                self.total_sectors += 1
+
+                if sectors % num_of_sectors_before_pause == 0:
+                    print("Avoiding block...")
+                    time.sleep(5)
+                if self.total_sectors % num_of_sectors_before_restarting == 0:
+                    print(f"Total sectors processed: {self.total_sectors}")
+                    self.restart_browser()
+            lat += lat_step
 
 
 if __name__ == "__main__":
     start_time = time.perf_counter()
     scraper = Scraper()
-    lat = 29.9976991
-    lng = 31.1819956
+    try:
+        lat = 29.9976991
+        lng = 31.1819956
 
-    scraper.loading_search_results(lat, lng)
-    scraper.scrolling_search_results()
-    result = scraper.scrape_results()
-    scraper.save_results(result)
+        scraper.move_over_sectors(
+            min_lat=lat - 0.15,
+            max_lat=lat + 0.15,
+            min_lng=lng - 0.15,
+            max_lng=lng + 0.15,
+        )
+        scraper.save_results()
 
-    print("total time taken:", time.perf_counter() - start_time)
-    scraper.driver.quit()
-    print("Scraping completed and browsers closed.")
+        print("total time taken:", time.perf_counter() - start_time)
+        scraper.driver.quit()
+        print("Scraping completed and browsers closed.")
+    except (KeyboardInterrupt, Exception) as e:
+        print("An error occurred:", str(e))
+        if scraper.driver:
+            scraper.save_results()
+            scraper.driver.quit()
