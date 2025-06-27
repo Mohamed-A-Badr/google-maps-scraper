@@ -1,5 +1,6 @@
 import csv
 import json
+import logging
 import os
 import re
 import time
@@ -17,6 +18,18 @@ from selenium.webdriver.edge.service import Service
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+log_file = "exception.log"
+if not os.path.exists(log_file):
+    with open(log_file, "w") as f:
+        f.write("")
+
+
+logging.basicConfig(
+    filename=log_file,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+
 
 class Scraper:
     def __init__(self):
@@ -27,9 +40,11 @@ class Scraper:
         self.total_sectors = 0
         self.full_results = []
         self.searched = {}
+        self.current_lat = 0
+        self.current_lng = 0
 
         self.setup_driver()
-        self.load_searched_places()
+        self.load_searched_places(self.country[1])
 
     def setup_driver(self):
         options = webdriver.EdgeOptions()
@@ -52,12 +67,14 @@ class Scraper:
         try:
             self.driver = webdriver.Edge(options=options, service=service)
         except WebDriverException as e:
+            self.log_crash(f"WebDriverException: {e}")
             raise RuntimeError(f"Failed to initialize Edge WebDriver: {e}")
 
     def open_url(self, url):
         if self.driver is not None:
             self.driver.get(url)
         else:
+            self.log_crash("Driver not initialized.")
             raise RuntimeError("Driver not initialized.")
 
     def loading_search_results(self, lat, lng):
@@ -71,6 +88,7 @@ class Scraper:
             )
         except TimeoutException as e:
             print(f"Error finding zoom out button: {e}")
+            self.log_crash(f"Error finding zoom out button at lat: {lat}, lng: {lng}")
             return
         zoom_out_button.click()
         time.sleep(1)
@@ -83,6 +101,9 @@ class Scraper:
             )
         except TimeoutException as e:
             print(f"Error finding search area button: {e}")
+            self.log_crash(
+                f"Error finding search area button at lat: {lat}, lng: {lng}"
+            )
             return
         search_area_button.click()
         time.sleep(1)
@@ -95,6 +116,7 @@ class Scraper:
             feed = self.driver.find_element(By.XPATH, '//div[@role="feed"]')
         except NoSuchElementException:
             print("Error: Could not find results feed")
+            self.log_crash("Could not find results feed.")
             return
 
         scroll_pause_time = 1
@@ -128,6 +150,7 @@ class Scraper:
             if current_results == 0:
                 print("No results found.")
                 break
+            print(f"Scrolled to load {current_results} results.")
 
     def scrape_results(self):
         """
@@ -240,6 +263,7 @@ class Scraper:
                 print(
                     f"Error decoding JSON from places_data_{country_name}.json. Starting fresh."
                 )
+                self.log_crash("Error decoding JSON from places_data file.")
                 data = []
 
         unique_results = [
@@ -288,6 +312,7 @@ class Scraper:
                     searched_data = json.load(f)
                 except json.JSONDecodeError:
                     searched_data = {}
+                    self.log_crash("Error decoding JSON from already_searched file.")
 
         searched_data.update(self.searched)
         with open(f"already_searched_{country_name}.json", "w", encoding="utf-8") as f:
@@ -297,16 +322,19 @@ class Scraper:
         self.searched.clear()
         self.full_results.clear()
 
-    def load_searched_places(self):
+    def load_searched_places(self, country_name):
         print("*" * 50)
         print("Loading already searched places from already_searched.json")
         try:
-            with open("already_searched.json", "r", encoding="utf-8") as f:
+            with open(
+                f"already_searched_{country_name}.json", "r", encoding="utf-8"
+            ) as f:
                 self.searched = json.load(f)
             print("Already searched places loaded successfully.")
         except (FileNotFoundError, json.JSONDecodeError):
             self.searched = {}
             print("No previously searched places found. Starting fresh.")
+            self.log_crash("No previously searched places found. Starting fresh.")
         print("*" * 50)
 
     def restart_browser(self):
@@ -314,7 +342,7 @@ class Scraper:
             self.driver.quit()
         self.save_results()
         self.setup_driver()
-        self.load_searched_places()
+        self.load_searched_places(self.country[1])
         print("=" * 50)
         print("Browser restarted and searched places reloaded.")
         print("=" * 50)
@@ -337,7 +365,12 @@ class Scraper:
         while lat <= max_lat:
             lng = min_lng
             while lng <= max_lng:
-                print(f"Searching sector {sectors + 1}: Lat {lat}, Lng {lng}")
+                self.current_lat = lat
+                self.current_lng = lng
+
+                print(
+                    f"Searching sector {sectors + 1}: Lat {lat}, Lng {lng} ({self.governorate_name}, {self.country[1]})"
+                )
                 self.loading_search_results(lat, lng)
                 self.scrolling_search_results()
                 self.scrape_results()
@@ -355,9 +388,23 @@ class Scraper:
             lat += lat_step
 
     def get_governorates_data(self, country="Egypt"):
+        """
+        Get the governorates data for the specified country.
+
+        Args:
+            country (str, optional): Get the governorate depends on the country name. Defaults to "Egypt".
+
+        Returns:
+            dict: A dictionary containing the governorates and their bounds.
+        """
         with open("governorates_bounds.json", "r", encoding="utf-8") as f:
             data = json.load(f)
         return data.get(country, [])
+
+    def log_crash(self, message):
+        logging.error(
+            f"Crashed at lat: {self.current_lat}, lng: {self.current_lng} at {self.governorate_name}, {self.country[1]} (Error message: {message})"
+        )
 
 
 if __name__ == "__main__":
@@ -381,6 +428,7 @@ if __name__ == "__main__":
         print("Scraping completed and browsers closed.")
     except (KeyboardInterrupt, Exception) as e:
         print("An error occurred:", str(e))
+        scraper.log_crash(str(e))
         if scraper.driver:
             scraper.save_results()
             scraper.driver.quit()

@@ -147,4 +147,6 @@ already_searched_*.json
 # Temporary files
 *.tmp
 
+# Log files
+*.log
 
