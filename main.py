@@ -347,8 +347,8 @@ class Scraper:
 if __name__ == "__main__":
     start_time = time.perf_counter()
     scraper = Scraper()
-    lat = 29.952372
-    lng = 30.9062091
+    lat = 29.9976991
+    lng = 31.1819956
 
     scraper.loading_search_results(lat, lng)
     scraper.scrolling_search_results()
@@ -357,3 +357,4 @@ if __name__ == "__main__":
 
     print("total time taken:", time.perf_counter() - start_time)
     scraper.driver.quit()
+    print("Scraping completed and browsers closed.")
