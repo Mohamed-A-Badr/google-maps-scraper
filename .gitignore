@@ -138,7 +138,8 @@ cython_debug/
 .vscode/
 
 # Scraped data in json format
-*.json
+places_data_*.json
+already_searched_*.json
 
 # Scraped data in csv format
 *.csv

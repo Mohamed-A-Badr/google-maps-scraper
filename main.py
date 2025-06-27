@@ -22,6 +22,8 @@ class Scraper:
     def __init__(self):
         self.driver = None
         self.search_query = "أشعة OR سينية OR radiology"
+        self.country = ["Egypt", "Saudi Arabia"]
+        self.governorate_name = ""
         self.total_sectors = 0
         self.full_results = []
         self.searched = {}
@@ -204,6 +206,7 @@ class Scraper:
                             if phone_button
                             else "N/A"
                         ),
+                        "governorate": self.governorate_name,
                         "category": (
                             category_button.get_text() if category_button else "N/A"
                         ),
@@ -219,11 +222,14 @@ class Scraper:
         print(f"Scraped {len(places_data)} places.")
 
     def save_results(self):
+        country_name = self.country[1].replace(" ", "_").lower()
         data = []
         existing_urls = set()
-        if os.path.exists("places_data.json"):
+        if os.path.exists(f"places_data_{country_name}.json"):
             try:
-                with open("places_data.json", "r", encoding="utf-8") as json_file:
+                with open(
+                    f"places_data_{country_name}.json", "r", encoding="utf-8"
+                ) as json_file:
                     data = json.load(json_file)
                     existing_urls = {
                         entry["google_map_url"]
@@ -231,7 +237,9 @@ class Scraper:
                         if "google_map_url" in entry
                     }
             except json.JSONDecodeError:
-                print("Error decoding JSON from places_data.json. Starting fresh.")
+                print(
+                    f"Error decoding JSON from places_data_{country_name}.json. Starting fresh."
+                )
                 data = []
 
         unique_results = [
@@ -241,13 +249,16 @@ class Scraper:
         ]
         data.extend(unique_results)
 
-        with open("places_data.json", "w", encoding="utf-8") as json_file:
+        with open(
+            f"places_data_{country_name}.json", "w", encoding="utf-8"
+        ) as json_file:
             json.dump(data, json_file, ensure_ascii=False, indent=4)
 
         columns = [
             "title",
             "address",
             "phone",
+            "governorate",
             "category",
             "rating",
             "number_of_reviews",
@@ -256,7 +267,9 @@ class Scraper:
             "google_map_url",
         ]
         if unique_results:
-            with open("places_data.csv", "a", newline="", encoding="utf-8-sig") as f:
+            with open(
+                f"places_data_{country_name}.csv", "a", newline="", encoding="utf-8-sig"
+            ) as f:
                 writer = csv.DictWriter(f, fieldnames=columns)
                 if f.tell() == 0:
                     writer.writeheader()
@@ -267,18 +280,20 @@ class Scraper:
             print("No new unique results to save.")
 
         searched_data = {}
-        if os.path.exists("already_searched.json"):
-            with open("already_searched.json", "r", encoding="utf-8") as f:
+        if os.path.exists(f"already_searched_{country_name}.json"):
+            with open(
+                f"already_searched_{country_name}.json", "r", encoding="utf-8"
+            ) as f:
                 try:
                     searched_data = json.load(f)
                 except json.JSONDecodeError:
                     searched_data = {}
 
         searched_data.update(self.searched)
-        with open("already_searched.json", "w", encoding="utf-8") as f:
+        with open(f"already_searched_{country_name}.json", "w", encoding="utf-8") as f:
             json.dump(searched_data, f, ensure_ascii=False, indent=4)
 
-        print("Already searched places saved to already_searched.json")
+        print(f"Already searched places saved to already_searched_{country_name}.json")
         self.searched.clear()
         self.full_results.clear()
 
@@ -305,12 +320,20 @@ class Scraper:
         print("=" * 50)
 
     def move_over_sectors(
-        self, min_lat, max_lat, min_lng, max_lng, lat_step=0.03, lng_step=0.05
+        self,
+        governorate,
+        min_lat,
+        max_lat,
+        min_lng,
+        max_lng,
+        lat_step=0.03,
+        lng_step=0.05,
     ):
         lat = min_lat
+        self.governorate_name = governorate
         sectors = 0
         num_of_sectors_before_pause = 20
-        num_of_sectors_before_restarting = 5
+        num_of_sectors_before_restarting = 100
         while lat <= max_lat:
             lng = min_lng
             while lng <= max_lng:
@@ -331,21 +354,27 @@ class Scraper:
                     self.restart_browser()
             lat += lat_step
 
+    def get_governorates_data(self, country="Egypt"):
+        with open("governorates_bounds.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get(country, [])
+
 
 if __name__ == "__main__":
     start_time = time.perf_counter()
     scraper = Scraper()
     try:
-        lat = 29.9976991
-        lng = 31.1819956
+        governorates = scraper.get_governorates_data(country=scraper.country[1])
 
-        scraper.move_over_sectors(
-            min_lat=lat - 0.15,
-            max_lat=lat + 0.15,
-            min_lng=lng - 0.15,
-            max_lng=lng + 0.15,
-        )
-        scraper.save_results()
+        for governorate in governorates:
+            scraper.move_over_sectors(
+                governorate=governorate["governorate"],
+                min_lat=governorate["min_lat"],
+                max_lat=governorate["max_lat"],
+                min_lng=governorate["min_long"],
+                max_lng=governorate["max_long"],
+            )
+            scraper.save_results()
 
         print("total time taken:", time.perf_counter() - start_time)
         scraper.driver.quit()
