@@ -9,7 +9,7 @@
     },
     {
       "governorate": "الإسكندرية",
-      "min_lat": 31.0,
+      "min_lat": 31.18,
       "max_lat": 31.3,
       "min_long": 29.8,
       "max_long": 30.0
@@ -63,6 +63,7 @@
       "min_long": 30.7,
       "max_long": 31.1
     },
+
     {
       "governorate": "الغربية",
       "min_lat": 30.7,
@@ -155,20 +156,6 @@
       "max_long": 33.0
     },
     {
-      "governorate": "البحر الأحمر",
-      "min_lat": 23.0,
-      "max_lat": 27.0,
-      "min_long": 33.0,
-      "max_long": 35.0
-    },
-    {
-      "governorate": "الوادي الجديد",
-      "min_lat": 22.0,
-      "max_lat": 26.0,
-      "min_long": 25.0,
-      "max_long": 30.5
-    },
-    {
       "governorate": "مطروح",
       "min_lat": 29.0,
       "max_lat": 31.5,
@@ -188,6 +175,20 @@
       "max_lat": 30.0,
       "min_long": 33.0,
       "max_long": 34.5
+    },
+    {
+      "governorate": "البحر الأحمر",
+      "min_lat": 23.0,
+      "max_lat": 27.0,
+      "min_long": 33.0,
+      "max_long": 35.0
+    },
+    {
+      "governorate": "الوادي الجديد",
+      "min_lat": 22.0,
+      "max_lat": 26.0,
+      "min_long": 25.0,
+      "max_long": 30.5
     }
   ],
   "Saudi Arabia": [
