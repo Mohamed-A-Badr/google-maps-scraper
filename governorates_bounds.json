@@ -1,18 +1,11 @@
 {
   "Egypt": [
     {
-      "governorate": "القاهرة",
-      "min_lat": 29.8,
+      "governorate": "الجيزة",
+      "min_lat": 29.2,
       "max_lat": 30.1,
-      "min_long": 31.1,
+      "min_long": 30.8,
       "max_long": 31.4
-    },
-    {
-      "governorate": "الإسكندرية",
-      "min_lat": 31.18,
-      "max_lat": 31.3,
-      "min_long": 29.8,
-      "max_long": 30.0
     },
     {
       "governorate": "بورسعيد",
@@ -63,7 +56,6 @@
       "min_long": 30.7,
       "max_long": 31.1
     },
-
     {
       "governorate": "الغربية",
       "min_lat": 30.7,
@@ -91,13 +83,6 @@
       "max_lat": 30.8,
       "min_long": 32.1,
       "max_long": 32.4
-    },
-    {
-      "governorate": "الجيزة",
-      "min_lat": 29.2,
-      "max_lat": 30.1,
-      "min_long": 30.8,
-      "max_long": 31.4
     },
     {
       "governorate": "بني سويف",

@@ -138,10 +138,7 @@ cython_debug/
 .vscode/
 
 # Scraped data in json format
-places_data_*.json
-places_data.json
-already_searched_*.json
-searched_governorate_*.json
+output/
 
 # Scraped data in csv format
 *.csv
@@ -153,5 +150,5 @@ searched_governorate_*.json
 *.log
 
 partial_results/
-
-stop.txt
+old_results/
+cleaned_data/
