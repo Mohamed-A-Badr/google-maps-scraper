@@ -93,8 +93,9 @@ class Scraper:
         self._country = ""
 
         self._search_tracker = None
+        self._searched = {}
 
-        self._full_results = []
+        self.full_results = []
 
     # =============================================
     # Initialize getters and setters
@@ -140,13 +141,21 @@ class Scraper:
     def search_tracker(self, value):
         self._search_tracker = value
 
-    @property
-    def full_results(self):
-        return self._full_results
+    # @property
+    # def full_results(self):
+    #     return self._full_results
 
-    @full_results.setter
-    def full_results(self, value):
-        self._full_results = value
+    # @full_results.setter
+    # def full_results(self, value):
+    #     self._full_results = value
+
+    @property
+    def searched(self):
+        return self._searched
+
+    @searched.setter
+    def searched(self, value):
+        self._searched = value
 
     # =============================================
     # Initilize selenium driver
@@ -234,21 +243,21 @@ class Scraper:
         print(f"Loaded {len(self.searched)} previously searched places")
 
         # Load already searched governorates from file
-        gov_file = f"already_searched_governorate_{self.country.lower().replace(' ', '_')}_{self.governorate.lower().replace(' ', '_')}.json"
-        try:
-            if os.path.exists(gov_file):
-                with open(gov_file, "r", encoding="utf-8") as f:
-                    self.searched_governorate = json.load(f)
-                print(
-                    f"Loaded {len(self.searched_governorate)} previously searched governorates"
-                )
-            else:
-                self.searched_governorate = {}
-                print("No governorate search history found. Starting fresh.")
-        except (json.JSONDecodeError, Exception) as e:
-            self.searched_governorate = {}
-            print(f"Error loading governorate data: {e}")
-            logger.error(f"Error loading governorate data: {e}")
+        # gov_file = f"already_searched_governorate_{self.country.lower().replace(' ', '_')}_{self.governorate.lower().replace(' ', '_')}.json"
+        # try:
+        #     if os.path.exists(gov_file):
+        #         with open(gov_file, "r", encoding="utf-8") as f:
+        #             self.searched_governorate = json.load(f)
+        #         print(
+        #             f"Loaded {len(self.searched_governorate)} previously searched governorates"
+        #         )
+        #     else:
+        #         self.searched_governorate = {}
+        #         print("No governorate search history found. Starting fresh.")
+        # except (json.JSONDecodeError, Exception) as e:
+        #     self.searched_governorate = {}
+        #     print(f"Error loading governorate data: {e}")
+        #     logger.error(f"Error loading governorate data: {e}")
 
         print("*" * 50)
 
@@ -393,7 +402,7 @@ class Scraper:
         results_feed = soup.find_all("a", class_="hfpxzc")
 
         for index, i in enumerate(results_feed):
-            if index % 50 == 0:
+            if (index + 1) % 50 == 0:
                 self.restart_browser()
 
             google_map_url = i.get("href")
@@ -403,9 +412,6 @@ class Scraper:
                 print(f"Place already searched ({index + 1}/{len(results_feed)})")
                 continue
 
-            print(
-                f"Total number of searched places: {self.search_tracker.get_all_searched().get(google_map_url, 0)}"
-            )
             self.search_tracker.add_searched(
                 google_map_url, {"status": "processing", "timestamp": time.time()}
             )
@@ -894,6 +900,8 @@ class Scraper:
         except Exception as e:
             logger.error(f"Error saving search tracker: {e}")
 
+        self.full_results.clear()
+
     def single_keyword(self, sector):
         self.current_lat, self.current_long = sector
         try:
@@ -997,7 +1005,6 @@ if __name__ == "__main__":
         governorate_list = json.load(f)
 
     scraper.country = CONFIG["country"]
-
     governorates = governorate_list.get(scraper.country, "")
 
     total_governorates = len(governorates)
@@ -1010,12 +1017,12 @@ if __name__ == "__main__":
     # print(scraper._starter_lat)
     # print(scraper._starter_long)
     # print(CONFIG["multi_keywords"])
-
     try:
         for idx, governorate in enumerate(governorates):
             print(governorate)
 
             scraper.governorate = str(governorate["governorate"])
+            scraper.load_previous_data()
             scraper.search_tracker = get_search_tracker(
                 scraper.country, scraper.governorate
             )

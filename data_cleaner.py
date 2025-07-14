@@ -189,7 +189,8 @@ def remove_location_not_in_governorate(csv_file, governorate):
         df.apply(
             lambda row: any(
                 keyword in str(row["address"])
-                for keyword in [governorate, "دمياط", "Damietta", "damietta"]),
+                for keyword in [governorate, "دمياط", "Damietta", "damietta"]
+            ),
             axis=1,
         )
     ].reset_index(drop=True)
@@ -222,24 +223,24 @@ def clean_phone_number(csv_file, gov_name):
 
 
 if __name__ == "__main__":
-    csv_file = "output/places_data_دمياط.csv"
+    csv_file = "output/القاهرة.csv"
 
-    # remove_duplicate(csv_file)
-    # print("Duplicated data removed!")
+    remove_duplicate(csv_file)
+    print("Duplicated data removed!")
 
     # rescrape_none_value_row("cleaned_data/stage_1_no_duplicate.csv")
     # print("None value row rescraped!")
 
-    add_governorate_value("cleaned_data/stage_1_no_duplicate.csv", "دمياط")
-    print("Governorate value added!")
+    # add_governorate_value("cleaned_data/stage_1_no_duplicate.csv", "دمياط")
+    # print("Governorate value added!")
 
-    remove_location_not_in_governorate(
-        "cleaned_data/stage_2_governorate.csv", "دمياط"
-    )
-    print("Location not in governorate removed!")
+    # remove_location_not_in_governorate(
+    #     "cleaned_data/stage_2_governorate.csv", "دمياط"
+    # )
+    # print("Location not in governorate removed!")
 
-    remove_unwanted_data("cleaned_data/stage_3_location_cleaned.csv")
-    print("Unwanted data removed!")
+    # remove_unwanted_data("cleaned_data/stage_3_location_cleaned.csv")
+    # print("Unwanted data removed!")
 
-    clean_phone_number("cleaned_data/stage_4_unwanted_data_removed.csv", "Damietta")
-    print("Phone number cleaned!")
+    # clean_phone_number("cleaned_data/stage_4_unwanted_data_removed.csv", "Damietta")
+    # print("Phone number cleaned!")
