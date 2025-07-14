@@ -1,25 +1,9 @@
-import logging
 import os
 
 import geopandas as gpd
 from shapely.geometry import Point
 from shapely.ops import nearest_points, unary_union
-
-file_path = "country_boundary_exception.log"
-if not os.path.exists(file_path):
-    with open(file_path, "w") as f:
-        f.write("")
-
-country_logger = logging.getLogger(__name__)
-country_logger.setLevel(logging.ERROR)
-
-country_logger.handlers.clear()
-
-file_handler = logging.FileHandler(filename=file_path, encoding="utf-8")
-formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-file_handler.setFormatter(formatter)
-
-country_logger.addHandler(file_handler)
+from logger import country_logger
 
 
 # Mapping of Egypt governorates from Arabic to English

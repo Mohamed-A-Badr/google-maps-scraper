@@ -1,6 +1,43 @@
+"""
+NOTE
+[] attributes
+    - [X] dirver
+    - [X] country
+    - [X] governorate
+    - [] total_sectors
+    - [] manager
+    - [] full_results
+    - [] searched_governorate
+    - [] finished_keywords
+    - [] WRITE_LOCK
+    - [X] search_tracker
+    - [] searched
+    - [X] current_lat
+    - [X] current_lng
+?   - [X] starter_lat
+?   - [X] starter_long
+    - [] first_coord_loop_lat
+    - [] first_coord_loop_lng
+[] methods
+    - [-] getters setters
+    - [X] setup_driver
+    - [X] log_crash
+    - [X] open_url
+    - [X] load_previous_data
+    - [X] loading_search_results
+    - [X] is_search_results_page
+    - [X] scrolling_search_results
+    - [X] scrape_results
+    - [X] thread_safe_write
+    - [X] combine_results
+    - [X] Process_keyword
+?   - [X] multi_keywords
+?   - [X] Single_keywords
+    - [X] move_over_sectors
+"""
+
 import csv
 import json
-import logging
 import multiprocessing
 import os
 import random
@@ -12,6 +49,7 @@ from multiprocessing import Manager
 from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup
+from pandas.io.common import file_exists
 from selenium import webdriver
 from selenium.common.exceptions import (
     NoSuchElementException,
@@ -26,22 +64,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from is_inside_country import find_near_location
 from keywords import keywords_terms
 from search_tracker import get_search_tracker
-
-log_file = "exception.log"
-if not os.path.exists(log_file):
-    with open(log_file, "w") as f:
-        f.write("")
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.ERROR)
-
-logger.handlers.clear()
-
-file_handler = logging.FileHandler(filename=log_file, encoding="utf-8")
-formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-file_handler.setFormatter(formatter)
-
-logger.addHandler(file_handler)
+from logger import logger, info_logger
 
 USER_AGENTS = [
     # Chrome Desktop
@@ -71,8 +94,10 @@ class Scraper:
 
         self._search_tracker = None
 
+        self._full_results = []
+
     # =============================================
-    # Initilize getters and setters
+    # Initialize getters and setters
     # =============================================
 
     @property
@@ -114,6 +139,14 @@ class Scraper:
     @search_tracker.setter
     def search_tracker(self, value):
         self._search_tracker = value
+
+    @property
+    def full_results(self):
+        return self._full_results
+
+    @full_results.setter
+    def full_results(self, value):
+        self._full_results = value
 
     # =============================================
     # Initilize selenium driver
@@ -168,6 +201,20 @@ class Scraper:
         else:
             self.log_crash("Driver not initialized.")
             raise RuntimeError("Driver not initialized.")
+
+    # =============================================
+    # Restart the browser
+    # =============================================
+    def restart_browser(self):
+        if self._driver is not None:
+            self._driver.quit()
+            self._driver = None
+        self.save_results()
+        self.setup_driver()
+        self.load_previous_data()
+        print("=" * 50)
+        print("Browser restarted and searched places reloaded.")
+        print("=" * 50)
 
     # =============================================
     # Loading pervious results to avoid duplicate
@@ -241,7 +288,6 @@ class Scraper:
             return
         if zoom_out_button:
             zoom_out_button.click()
-            time.sleep(1)
         else:
             print("Zoom out button not found")
             self.log_crash(f"Zoom out button not found at lat: {lat}, lng: {lng}")
@@ -343,10 +389,13 @@ class Scraper:
         Scrape the results from the place's page and store them in full_results.
         """
         places_data = []
-        soup = BeautifulSoup(self._driver.page_source, "html.parser")
+        soup = BeautifulSoup(self._driver.page_source, "lxml")
         results_feed = soup.find_all("a", class_="hfpxzc")
 
         for index, i in enumerate(results_feed):
+            if index % 50 == 0:
+                self.restart_browser()
+
             google_map_url = i.get("href")
 
             # Skip if we've already searched this URL
@@ -364,7 +413,7 @@ class Scraper:
             self.open_url(google_map_url)
             print(f"Processing place {index + 1}/{len(results_feed)}")
 
-            card_data = BeautifulSoup(self._driver.page_source, "html.parser")
+            card_data = BeautifulSoup(self._driver.page_source, "lxml")
 
             title = card_data.find("h1", class_="DUwDvf lfPIob")
             address = card_data.find(
@@ -432,9 +481,34 @@ class Scraper:
                         "google_map_url": google_map_url,
                     }
                 )
-
-        self.thread_safe_write(places_data)
+        if CONFIG["multi_keywords"]:
+            self.thread_safe_write(places_data)
+        else:
+            self.full_results.extend(places_data)
         print(f"Scraped {len(places_data)} places.")
+
+    def save_results(self):
+        """
+        Save the in-memory full_results to a partial JSON file.
+        This is used in single_keyword mode to ensure results are combined correctly.
+        """
+        if not self.full_results:
+            return
+
+        output_dir = "partial_results"
+        os.makedirs(output_dir, exist_ok=True)
+        timestamp = int(time.time())
+        # Use a generic name for the single-keyword process
+        output_file = os.path.join(output_dir, f"results_single_{timestamp}.json")
+
+        try:
+            with open(output_file, "w", encoding="utf-8") as f:
+                json.dump(self.full_results, f, ensure_ascii=False, indent=2)
+            print(f"Saved {len(self.full_results)} results to {output_file}")
+            # Clear the in-memory list after saving
+            self.full_results.clear()
+        except Exception as e:
+            self.log_crash(f"Error saving results to {output_file}: {e}")
 
     # =============================================
     # Scraping places with multiple keywords
@@ -752,24 +826,135 @@ class Scraper:
     # Scraping places with one keyword
     # =============================================
 
-    def single_keyword(self, number_of_sectors):
-        print(
-            f"\n📍 Searching at lat={self.current_lat}, lng={self.current_long} sector {number_of_sectors}"
-        )
+    # TODO: save_results duplicate the data
+    def save_results(self):
+        os.makedirs("output", exist_ok=True)
+        csv_file = f"output/{self.governorate}.csv"
+        json_file = f"output/{self.governorate}.json"
+
+        # Save data in json file
         try:
-            try:
-                inside, near_lat, near_long = find_near_location(
-                    self.current_lat, self.current_long, self.country
-                )
-                if not inside:
-                    self.current_lat, self.current_long = near_lat, near_long
-
-            except:
-                pass
+            with open(json_file, "w", encoding="utf-8") as f:
+                print("Saving data in json file...")
+                json.dump(list(self.full_results), f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print("Error:", e)
+            print(f"Error Saving json file: {e}")
+            self.log_crash(f"Error Saving json file: {e}")
 
-        pass
+        print("Json file saved successfully")
+
+        field_name = [
+            "title",
+            "address",
+            "phone",
+            "governorate",
+            "category",
+            "rating",
+            "number_of_reviews",
+            "website",
+            "booking_link",
+            "google_map_url",
+        ]
+
+        # Save data in csv file
+        try:
+            csv_file_exists = not os.path.exists(csv_file)
+            with open(
+                csv_file,
+                "a" if not csv_file_exists else "w",
+                newline="",
+                encoding="utf-8-sig",
+            ) as f:
+                writer = csv.DictWriter(f, fieldnames=field_name)
+                if csv_file_exists:
+                    writer.writeheader()
+                for result in self.full_results:
+                    writer.writerow({k: result.get(k, "") for k in field_name})
+
+        except Exception as e:
+            print(f"Error Saving csv file: {e}")
+            self.log_crash(f"Error Saving csv file: {e}")
+        print("Csv file saved successfully")
+
+        # Update search tracker with processed URLs
+        for place in self.full_results:
+            if "google_map_url" in place:
+                self.search_tracker.add_searched(
+                    place["google_map_url"],
+                    {
+                        "status": "completed",
+                        "timestamp": time.time(),
+                        "title": place.get("title", ""),
+                    },
+                )
+
+        # Save the updated search tracker state
+        try:
+            self.search_tracker.save()
+        except Exception as e:
+            logger.error(f"Error saving search tracker: {e}")
+
+    def single_keyword(self, sector):
+        self.current_lat, self.current_long = sector
+        try:
+            self.loading_search_results(
+                query=CONFIG["keyword"], lat=self.current_lat, lng=self.current_long
+            )
+            self.scrolling_search_results()
+            self.scrape_results()
+            self.save_results()
+        except Exception as e:
+            self.log_crash(f"Error loading search results: {e}")
+
+    # =============================================
+    # Generate sectors
+    # =============================================
+
+    def generate_sectors(
+        self,
+        min_lat: float,
+        max_lat: float,
+        min_long: float,
+        max_long: float,
+        step_lat: float,
+        step_long: float,
+    ) -> list:
+        sectors_list = []
+
+        lat = min_lat
+        find_max_lat = False
+
+        while lat <= max_lat:
+            long = min_long
+            find_max_long = False
+
+            while long <= max_long:
+                inside, near_lat, near_long = find_near_location(
+                    lat, long, self.country
+                )
+                sectors_list.append((lat, long) if inside else (near_lat, near_long))
+
+                long += step_long
+
+                epsilon = 1e-6
+                if not find_max_long:
+                    if abs(long - max_long) < epsilon:
+                        find_max_long = True
+                    elif long > max_long:
+                        long = max_long
+                        find_max_long = True
+
+            lat += step_lat
+
+            epsilon = 1e-6
+            if not find_max_lat:
+                if abs(lat - max_lat) < epsilon:
+                    find_max_lat = True
+                elif lat > max_lat:
+                    lat = max_lat
+                    find_max_lat = True
+
+        return sectors_list
 
     # =============================================
     # Move over sectors
@@ -777,76 +962,36 @@ class Scraper:
 
     def move_over_sectors(
         self,
-        min_lat,
-        max_lat,
-        min_long,
-        max_long,
-        start_lat,
-        start_long,
-        lat_step=0.03,
-        long_step=0.05,
+        sectors_list: list,
+        start_sector_idx: int = 0,
     ):
-        find_max_lat = False
-        find_max_long = False
+        for idx, sector in enumerate(sectors_list):
+            if idx < start_sector_idx:
+                continue
 
-        sector_number = 1
+            self.current_lat, self.current_long = sector
 
-        if self._starter_lat:
-            lat = start_lat
-            self._starter_lat = False
-        else:
-            lat = min_lat
+            print(
+                f" 📍 Searching sector {idx}/{len(sectors_list) - 1}: Lat {self.current_lat}, long {self.current_long} ({self.governorate}, {self.country})"
+            )
+            info_logger.info(
+                f"Searching sector {idx}/{len(sectors_list) - 1}: Lat {self.current_lat}, long {self.current_long} ({self.governorate}, {self.country})"
+            )
 
-        while lat <= max_lat:
-            if self._starter_long:
-                long = start_long
-                self._starter_long = False
+            if CONFIG["multi_keywords"]:
+                self.multi_keywords()
             else:
-                long = min_long
-
-            while long <= max_long:
-                self.current_lat = lat
-                self.current_long = long
-
-                print(
-                    f"Searching sector {sector_number + 1}: Lat {lat}, long {long} ({self.governorate}, {self.country})"
-                )
-
-                if CONFIG["multi_keywords"]:
-                    self.multi_keywords()
-                else:
-                    self.single_keyword(sector_number)
-
-            long += long_step
-            sector_number += 1
-            self.total_sectors += 1
-
-            # check if we reached the max longitude
-            epsilon = 1e-6
-            if not find_max_long:
-                if abs(long - max_long) < epsilon:
-                    find_max_long = True
-                elif long > max_long:
-                    long = max_long
-                    find_max_long = True
-
-        lat += lat_step
-
-        epsilon = 1e-6
-        if not find_max_lat:
-            if abs(lat - max_lat) < epsilon:
-                find_max_lat = True
-            elif lat > max_lat:
-                lat = max_lat
-                find_max_lat = True
-
-        pass
+                # print("*" * 50)
+                # print("Single keyword")
+                self.single_keyword(sector)
+                # print("*" * 50)
 
 
 if __name__ == "__main__":
     start_time = time.perf_counter()
 
     scraper = Scraper()
+    scraper.setup_driver()
 
     with open("governorates_bounds.json", "r", encoding="utf-8") as f:
         governorate_list = json.load(f)
@@ -857,40 +1002,88 @@ if __name__ == "__main__":
 
     total_governorates = len(governorates)
 
+    ## NOTE: Testing getters and setters
+    # print(scraper.country)
+    # print(scraper.governorate)
+    # print(scraper.current_lat)
+    # print(scraper.current_lng)
+    # print(scraper._starter_lat)
+    # print(scraper._starter_long)
+    # print(CONFIG["multi_keywords"])
+
     try:
         for idx, governorate in enumerate(governorates):
             print(governorate)
 
             scraper.governorate = str(governorate["governorate"])
             scraper.search_tracker = get_search_tracker(
-                scraper.country[0], scraper.governorate
+                scraper.country, scraper.governorate
             )
             scraper.searched = scraper.search_tracker.get_all_searched()
 
             print(f"\nProcessing governorate {idx}/{total_governorates}: {governorate}")
 
+            sectors_list = scraper.generate_sectors(
+                min_lat=governorate["min_lat"],
+                max_lat=governorate["max_lat"],
+                min_long=governorate["min_long"],
+                max_long=governorate["max_long"],
+                step_lat=CONFIG["step_lat"],
+                step_long=CONFIG["step_long"],
+            )
+
+            # print(f"Generated {len(sectors_list)} sectors for {scraper.governorate}")
+            # print(sectors_list)
+
+            # exit()
+
             # Move over sectors for this governorate
+            scraper.move_over_sectors(
+                sectors_list=sectors_list,
+                start_sector_idx=CONFIG["start_sector_idx"],
+            )
+            print(f"Completed processing governorate: {scraper.governorate}")
 
-            scraper.move_over_sectors()
-
-            # Finish scrape the whole governorate
+            break
 
         end_time = time.perf_counter()
         print(
-            f"Script execution completed. Total time: {(end_time - start_time)/60:.2f} minutes"
+            f"Script execution completed. Total time: {(end_time - start_time) / 60:.2f} minutes"
         )
     except KeyboardInterrupt:
-        print("\nScript interrupted by user. Combining results...")
+        print("\nScript interrupted by user. Saving results...")
         end_time = time.perf_counter()
         print(
-            f"Script execution completed. Total time: {(end_time - start_time)/60:.2f} minutes"
+            f"Script execution completed. Total time: {(end_time - start_time) / 60:.2f} minutes"
         )
     except Exception as e:
         print(f"\nAn error occurred: {e}")
         end_time = time.perf_counter()
         print(
-            f"Script execution completed. Total time: {(end_time - start_time)/60:.2f} minutes"
+            f"Script execution completed. Total time: {(end_time - start_time) / 60:.2f} minutes"
         )
         scraper.log_crash(f"Script crashed with error: {e}")
+    finally:
+        # If in single keyword mode, save the in-memory results to a file
+        if not CONFIG["multi_keywords"]:
+            scraper.save_results()
 
+        # Combine all partial results before exiting
+        if CONFIG["multi_keywords"]:
+            print("Combining results from all processes...")
+            Scraper.combine_results(scraper.governorate)
+            print("Results combined successfully.")
+        else:
+            print("Saving results...")
+            scraper.save_results()
+            print("Results saved successfully.")
 
+        # Close the driver if it's open
+        if hasattr(scraper, "driver") and scraper.driver:
+            scraper.driver.quit()
+            print("WebDriver closed.")
+
+        end_time = time.perf_counter()
+        print(
+            f"Script execution completed. Total time: {(end_time - start_time) / 60:.2f} minutes"
+        )

@@ -17,7 +17,9 @@ class SearchTracker:
         """
         self.country = country.lower().replace(" ", "_")
         self.governorate = governorate
-        self.filename = f"output/already_searched_{self.country}_{governorate}.json"
+        self.filename = (
+            f"output/already_searched_{self.country}_{self.governorate}.json"
+        )
         self.lock = Lock()
 
         # Use a Manager for process-safe sharing
