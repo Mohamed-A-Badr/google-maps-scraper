@@ -12,6 +12,12 @@ UNWANTED_CATEGORY = [
     # "أخصائي تخاطب",
     # "أخصائي علم نفس",
     # "أخصائي تغذية",
+    "خدمة ترجمة",
+    "دار القطط",
+    "متجر بيع عبوات حبر الطابعات",
+    "خدمة وسائل النقل",
+    "خدمة إصلاح زجاج سيارات",
+    "تنظيف جاف للملابس",
     "استوديو التصوير الفوتوغرافي",
     "استوديو تصوير فوتوغرافي",
     "النادي الاجتماعي",
@@ -58,11 +64,16 @@ UNWANTED_CATEGORY = [
     "Massage spa",
     "المركز التعليمي",
     "بنك ادخار",
+    "خدمة تنظيف المفروشات",
+    "سوق",
     "جامعة",
     "حديقة",
     "حمام",
     "خدمة استكشاف الغاز والبترول",
+    "مركز ثقافي اجتماعي",
     "خدمة التسويق عبر الإنترنت",
+    "مكتب ترخيص الزواج",
+    "نقابة العمال",
     "خدمة معاملات تجارية بين الشركات",
     "رعاية صحية في المنزل",
     "شركة أتمتة",
@@ -111,6 +122,19 @@ UNWANTED_CATEGORY = [
     "متجر الأجهزة المساعدة على السماع",
     "محطة فحص سيارات",
     "محل إصلاح كاميرات",
+    "مُجلِّد كتب",
+    "متجر مستحضرات الصحة والتجميل",
+    "متجر كاميرات",
+    "متجر قطع غيار سيارات",
+    "متجر بيع عبوات حبر الطابعات",
+    "مكتبة عامة",
+    "مكتب الشركات",
+    "مطعم",
+    "مصور زفاف",
+    "مركز خدمات الأسرة",
+    "متجر مواد بناء",
+    "موقف سيارات",
+    "موقع تصوير",
 ]
 
 
@@ -165,8 +189,7 @@ def remove_location_not_in_governorate(csv_file, governorate):
         df.apply(
             lambda row: any(
                 keyword in str(row["address"])
-                for keyword in [governorate, "المعادى", "المعادي", "Cairo"]
-            ),
+                for keyword in [governorate, "دمياط", "Damietta", "damietta"]),
             axis=1,
         )
     ].reset_index(drop=True)
@@ -199,24 +222,24 @@ def clean_phone_number(csv_file, gov_name):
 
 
 if __name__ == "__main__":
-    csv_file = "output/places_data_alex.csv"
+    csv_file = "output/places_data_دمياط.csv"
 
-    remove_duplicate(csv_file)
-    print("Duplicated data removed!")
+    # remove_duplicate(csv_file)
+    # print("Duplicated data removed!")
 
-    rescrape_none_value_row("cleaned_data/stage_1_no_duplicate.csv")
-    print("None value row rescraped!")
+    # rescrape_none_value_row("cleaned_data/stage_1_no_duplicate.csv")
+    # print("None value row rescraped!")
 
-    add_governorate_value("cleaned_data/stage_1_no_duplicate.csv", "الإسكندرية")
+    add_governorate_value("cleaned_data/stage_1_no_duplicate.csv", "دمياط")
     print("Governorate value added!")
 
     remove_location_not_in_governorate(
-        "cleaned_data/stage_2_governorate.csv", "الإسكندرية"
+        "cleaned_data/stage_2_governorate.csv", "دمياط"
     )
     print("Location not in governorate removed!")
 
     remove_unwanted_data("cleaned_data/stage_3_location_cleaned.csv")
     print("Unwanted data removed!")
 
-    clean_phone_number("cleaned_data/stage_4_unwanted_data_removed.csv", "cairo")
+    clean_phone_number("cleaned_data/stage_4_unwanted_data_removed.csv", "Damietta")
     print("Phone number cleaned!")

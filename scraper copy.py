@@ -121,7 +121,7 @@ class Scraper:
         # Create a new scraper instance for this process
 
         output_file_list = []
-        
+
         for keywords in keyword_list:
             scraper = cls()
             try:
@@ -130,13 +130,20 @@ class Scraper:
                 # print(keywords)
                 # print("*" * 50)
                 for query in keywords:
-                    # print("*" * 50)
-                    # print(query)
-                    # print("*" * 50)
+                    print("*" * 50)
+                    print(query)
+                    print("*" * 50)
                     try:
                         print(
-                            f"[Process {process_id}] Searching using keyword: {query} at lat: {lat}, lng: {lng}"
+                            f"[Process {process_id}] Searching using keyword: {query}"
                         )
+
+                        # Check if the location is inside the country
+                        inside, near_lat, near_long = find_near_location(
+                            lat, lng, country
+                        )
+                        if not inside:
+                            lat, lng = near_lat, near_long
 
                         # Load the search results for the sector
                         scraper.loading_search_results(query, lat, lng)
@@ -240,11 +247,11 @@ class Scraper:
         options.add_argument("--disable-extensions")
         # remove cache data
         options.add_argument("--disable-cache")
+        # remove cookies
         options.add_argument("--disable-cookies")
         # Add random user-agent
         options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
 
-        # Disable unnecessary features
         prefs = {
             "profile.default_content_setting_values": {
                 "notifications": 2,
@@ -272,9 +279,7 @@ class Scraper:
 
     def is_search_results_page(self):
         try:
-            WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.XPATH, '//div[@role="feed"]'))
-            )
+            self.driver.find_element(By.XPATH, '//div[@role="feed"]')
             return True
         except Exception as e:
             self.log_crash(f"Error finding search results page: {e}")
@@ -287,7 +292,7 @@ class Scraper:
         encoded_query = quote_plus(query)
         url = f"https://www.google.com/maps/search/{encoded_query}/@{lat},{lng},16z"
         self.open_url(url)
-
+        time.sleep(2)
         if not self.is_search_results_page():
             self.log_crash(f"Search results page not found at lat: {lat}, lng: {lng}")
             return
@@ -300,12 +305,12 @@ class Scraper:
             print(f"Error finding zoom out button: {e}")
             self.log_crash(f"Error finding zoom out button at lat: {lat}, lng: {lng}")
             return
-        
-        try:
+        if zoom_out_button:
             zoom_out_button.click()
-        except (TimeoutException, Exception) as e:
-            print(f"Error clicking zoom out button: {e}")
-            self.log_crash(f"Error clicking zoom out button at lat: {lat}, lng: {lng}")
+            time.sleep(1)
+        else:
+            print("Zoom out button not found")
+            self.log_crash(f"Zoom out button not found at lat: {lat}, lng: {lng}")
             return
 
         try:
@@ -320,14 +325,12 @@ class Scraper:
                 f"Error finding search area button at lat: {lat}, lng: {lng}"
             )
             return
-        try:
+        if search_area_button:
             search_area_button.click()
-            time.sleep(2)
-        except (TimeoutException, Exception) as e:
-            print(f"Error clicking search area button: {e}")
-            self.log_crash(
-                f"Error clicking search area button at lat: {lat}, lng: {lng}"
-            )
+            time.sleep(1)
+        else:
+            print("Search area button not found")
+            self.log_crash(f"Search area button not found at lat: {lat}, lng: {lng}")
             return
 
     def scrolling_search_results(self):
@@ -400,7 +403,7 @@ class Scraper:
         Scrape the results from the place's page and store them in full_results.
         """
         places_data = []
-        soup = BeautifulSoup(self.driver.page_source, "lxml")
+        soup = BeautifulSoup(self.driver.page_source, "html.parser")
         results_feed = soup.find_all("a", class_="hfpxzc")
 
         for index, i in enumerate(results_feed):
@@ -421,7 +424,7 @@ class Scraper:
             self.open_url(google_map_url)
             print(f"Processing place {index + 1}/{len(results_feed)}")
 
-            card_data = BeautifulSoup(self.driver.page_source, "lxml")
+            card_data = BeautifulSoup(self.driver.page_source, "html.parser")
 
             title = card_data.find("h1", class_="DUwDvf lfPIob")
             address = card_data.find(
@@ -686,8 +689,8 @@ class Scraper:
         max_lng,
         start_lat,
         start_lng,
-        lat_step=0.07,
-        lng_step=0.1,
+        lat_step=0.03,
+        lng_step=0.05,
     ):
         self._governorate_name = governorate
 
@@ -722,19 +725,13 @@ class Scraper:
                     f"Searching sector {sectors + 1}: Lat {lat}, Lng {lng} ({self._governorate_name}, {self.country[0]})"
                 )
                 # Process each keyword group
-
-                # Check if the location is inside the country
-                inside, near_lat, near_long = find_near_location(
-                    lat, lng, self.country[0]
-                )
-
                 process_args = []
                 for i, group_list in enumerate(keywords_terms):
                     group_name = f"Group_{i + 1}"
                     process_id = f"{group_name}_{i}"
 
                     process_args.append(
-                        (group_list, lat if inside else near_lat, lng if inside else near_long, self.country[0], process_id)
+                        (group_list, lat, lng, self.country[0], process_id)
                     )
 
                 os.makedirs("partial_results", exist_ok=True)
@@ -757,11 +754,11 @@ class Scraper:
                             print(f"Error processing query {query}: {e}")
                             self.log_crash(f"Error processing query {query}: {e}")
 
-                # After completing a sector, combine the results
-                print("Combining results...")
-                Scraper.combine_results(self._governorate_name)
-                print(f"Completed processing sector: {group_name}")
-                print("=" * 50)
+                    # After completing a keyword group, combine the results
+                    print("Combining results...")
+                    Scraper.combine_results(self._governorate_name)
+                    print(f"Completed processing keyword group: {group_name}")
+                    print("=" * 50)
 
                 lng += lng_step
                 sectors += 1
@@ -775,7 +772,7 @@ class Scraper:
                     elif lng > max_lng:
                         lng = max_lng
                         find_max_lng = True
- 
+
             lat += lat_step
 
             epsilon = 1e-6
@@ -844,8 +841,16 @@ if __name__ == "__main__":
         # Process each governorate sequentially
         cnt = 1
         for idx, governorate in enumerate(governorates):
-            if governorate['governorate'] != "الإسماعيلية":
-                continue
+            if cnt == 3:
+                break
+
+            if cnt == 2:
+                if os.path.exists(
+                    f"output/already_searched_{scraper.country[0]}_.json"
+                ):
+                    os.remove(f"output/already_searched_{scraper.country[0]}_.json")
+
+            cnt += 1
 
             print(governorate["governorate"])
 
@@ -870,7 +875,7 @@ if __name__ == "__main__":
                 min_lng=governorate["min_long"],
                 max_lng=governorate["max_long"],
                 start_lat=governorate["min_lat"],
-                start_lng=32.12,
+                start_lng=governorate["max_long"],
             )
 
             print(f"Completed processing governorate: {governorate_name}")
@@ -879,8 +884,6 @@ if __name__ == "__main__":
             if idx < total_governorates:
                 print("Waiting before processing next governorate...")
                 time.sleep(5)
-            
-            break
         end_time = time.perf_counter()
         print(
             f"Script execution completed. Total time: {(end_time - start_time)/60:.2f} minutes"

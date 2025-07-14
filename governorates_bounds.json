@@ -1,95 +1,53 @@
 {
   "Egypt": [
     {
+      "governorate": "القاهرة",
+      "min_lat": 30.01,
+      "max_lat": 30.1,
+      "min_long": 31.1,
+      "max_long": 31.4
+    },
+    {
       "governorate": "الجيزة",
-      "min_lat": 29.2,
+      "min_lat": 30.09, 
       "max_lat": 30.1,
       "min_long": 30.8,
       "max_long": 31.4
     },
     {
       "governorate": "بورسعيد",
-      "min_lat": 31.2,
-      "max_lat": 31.3,
-      "min_long": 32.2,
-      "max_long": 32.3
+      "min_lat": 31.25,
+      "max_lat": 31.36,
+      "min_long": 32.0,
+      "max_long": 32.5 
     },
     {
       "governorate": "السويس",
-      "min_lat": 29.9,
-      "max_lat": 30.0,
-      "min_long": 32.4,
+      "min_lat": 30.3,
+      "max_lat": 30.3,
+      "min_long": 32.6,
       "max_long": 32.6
     },
     {
       "governorate": "دمياط",
-      "min_lat": 31.3,
+      "min_lat": 31.5,
       "max_lat": 31.5,
-      "min_long": 31.6,
-      "max_long": 31.8
-    },
-    {
-      "governorate": "الدقهلية",
-      "min_lat": 30.9,
-      "max_lat": 31.3,
-      "min_long": 31.3,
-      "max_long": 31.7
-    },
-    {
-      "governorate": "الشرقية",
-      "min_lat": 30.5,
-      "max_lat": 30.9,
-      "min_long": 31.5,
-      "max_long": 32.2
-    },
-    {
-      "governorate": "القليوبية",
-      "min_lat": 30.1,
-      "max_lat": 30.4,
-      "min_long": 31.0,
-      "max_long": 31.4
-    },
-    {
-      "governorate": "كفر الشيخ",
-      "min_lat": 31.0,
-      "max_lat": 31.4,
-      "min_long": 30.7,
-      "max_long": 31.1
-    },
-    {
-      "governorate": "الغربية",
-      "min_lat": 30.7,
-      "max_lat": 31.0,
-      "min_long": 30.9,
-      "max_long": 31.2
-    },
-    {
-      "governorate": "المنوفية",
-      "min_lat": 30.4,
-      "max_lat": 30.7,
-      "min_long": 30.8,
-      "max_long": 31.1
-    },
-    {
-      "governorate": "البحيرة",
-      "min_lat": 30.3,
-      "max_lat": 31.3,
-      "min_long": 29.9,
-      "max_long": 30.8
+      "min_long": 31.4,
+      "max_long": 32.0
     },
     {
       "governorate": "الإسماعيلية",
-      "min_lat": 30.5,
-      "max_lat": 30.8,
-      "min_long": 32.1,
-      "max_long": 32.4
+      "min_lat": 30.57, 
+      "max_lat": 30.9,
+      "min_long": 31.72,
+      "max_long": 32.5
     },
     {
-      "governorate": "بني سويف",
-      "min_lat": 28.8,
-      "max_lat": 29.4,
-      "min_long": 30.6,
-      "max_long": 31.3
+      "governorate": "الأقصر",
+      "min_lat": 25.2,
+      "max_lat": 25.8,
+      "min_long": 32.4,
+      "max_long": 32.7
     },
     {
       "governorate": "الفيوم",
@@ -99,53 +57,102 @@
       "max_long": 31.0
     },
     {
-      "governorate": "المنيا",
-      "min_lat": 27.8,
-      "max_lat": 28.9,
+      "governorate": "القليوبية",
+      "min_lat": 30.1,
+      "max_lat": 30.6,
+      "min_long": 31.0,
+      "max_long": 31.6
+    },
+    {
+      "governorate": "قنا",
+      "min_lat": 25.8,
+      "max_lat": 26.2,
+      "min_long": 32.0,
+      "max_long": 32.8
+    },
+    {
+      "governorate": "الغربية",
+      "min_lat": 30.5,
+      "max_lat": 31.1,
+      "min_long": 30.75,
+      "max_long": 31.3
+    },
+    {
+      "governorate": "بني سويف",
+      "min_lat": 28.75,
+      "max_lat": 29.4,
+      "min_long": 30.7,
+      "max_long": 31.25
+    },
+    {
+      "governorate": "المنوفية",
+      "min_lat": 30.2,
+      "max_lat": 30.75,
       "min_long": 30.4,
-      "max_long": 31.0
+      "max_long": 31.25
+    },
+    {
+      "governorate": "المنيا",
+      "min_lat": 27.6,
+      "max_lat": 28.8,
+      "min_long": 30.5,
+      "max_long": 30.9
+    },
+    {
+      "governorate": "الدقهلية",
+      "min_lat": 30.5,
+      "max_lat": 31.5,
+      "min_long": 31.2,
+      "max_long": 32.1
+    },
+    {
+      "governorate": "الشرقية",
+      "min_lat": 30.2,
+      "max_lat": 31.15,
+      "min_long": 31.2,
+      "max_long": 32.2
+    },
+    {
+      "governorate": "كفر الشيخ",
+      "min_lat": 31.0,
+      "max_lat": 31.6,
+      "min_long": 30.35,
+      "max_long": 31.3
+    },
+    {
+      "governorate": "البحيرة",
+      "min_lat": 30.3,
+      "max_lat": 31.4,
+      "min_long": 29.9,
+      "max_long": 30.8
     },
     {
       "governorate": "أسيوط",
       "min_lat": 26.8,
-      "max_lat": 27.9,
-      "min_long": 30.6,
-      "max_long": 31.3
+      "max_lat": 27.6,
+      "min_long": 30.7,
+      "max_long": 31.4
     },
     {
       "governorate": "سوهاج",
       "min_lat": 26.2,
       "max_lat": 27.0,
-      "min_long": 31.5,
-      "max_long": 32.0
-    },
-    {
-      "governorate": "قنا",
-      "min_lat": 25.7,
-      "max_lat": 26.5,
-      "min_long": 32.5,
-      "max_long": 33.0
-    },
-    {
-      "governorate": "الأقصر",
-      "min_lat": 25.6,
-      "max_lat": 25.8,
-      "min_long": 32.5,
-      "max_long": 32.7
+      "min_long": 31.4,
+      "max_long": 32.1
     },
     {
       "governorate": "أسوان",
-      "min_lat": 23.5,
-      "max_lat": 24.2,
-      "min_long": 32.8,
+      "min_lat": 23.95,
+      "max_lat": 25.2,
+      "min_long": 32.6,
       "max_long": 33.0
     },
     {
       "governorate": "مطروح",
-      "min_lat": 29.0,
+      "min_lat": 30.75,
       "max_lat": 31.5,
       "min_long": 25.0,
-      "max_long": 29.0
+      "max_long": 29.5
     },
     {
       "governorate": "شمال سيناء",
@@ -165,7 +172,7 @@
       "governorate": "البحر الأحمر",
       "min_lat": 23.0,
       "max_lat": 27.0,
-      "min_long": 33.0,
+      "min_long": 32.5,
       "max_long": 35.0
     },
     {
