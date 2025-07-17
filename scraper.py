@@ -49,7 +49,6 @@ from multiprocessing import Manager
 from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup
-from pandas.io.common import file_exists
 from selenium import webdriver
 from selenium.common.exceptions import (
     NoSuchElementException,
@@ -80,7 +79,7 @@ with open("config.json", "r", encoding="utf-8") as f:
 
 
 class Scraper:
-    def __init__(self):
+    def __init__(self, shared_data=None):
         self._driver = None
 
         self._current_lat = 0
@@ -94,8 +93,12 @@ class Scraper:
 
         self._search_tracker = None
         self._searched = {}
+        self._searched_governorate = {}
 
         self.full_results = []
+
+        self._manager = None
+        self._WRITE_LOCK = None
 
     # =============================================
     # Initialize getters and setters
@@ -148,6 +151,58 @@ class Scraper:
     @searched.setter
     def searched(self, value):
         self._searched = value
+
+    @property
+    def searched_governorate(self):
+        return self._searched_governorate
+
+    @searched_governorate.setter
+    def searched_governorate(self, value):
+        self._searched_governorate = value
+
+    @property
+    def manager(self):
+        return self._manager
+
+    @manager.setter
+    def manager(self, value):
+        self._manager = value
+
+    @property
+    def WRITE_LOCK(self):
+        return self._WRITE_LOCK
+
+    @WRITE_LOCK.setter
+    def WRITE_LOCK(self, value):
+        self._WRITE_LOCK = value
+
+    # =============================================
+    # Initilize attributes for multi-keywords
+    # =============================================
+    def _multi_keywords_init_(self, shared_data=None):
+        if not shared_data:
+            self.manager = Manager()
+            self.full_results = self.manager.list()
+            self.searched = self.manager.dict()
+            self.searched_governorate = self.manager.dict()
+            self.finished_keywords = self.manager.dict()
+
+        self.manager = (
+            shared_data["manager"] if shared_data and "manager" in shared_data else None
+        )
+        self.full_results = (
+            shared_data["full_results"]
+            if shared_data and "full_results" in shared_data
+            else []
+        )
+        self.searched = shared_data.get("searched", {}) if shared_data else {}
+        self.searched_governorate = (
+            shared_data.get("searched_governorate", {}) if shared_data else {}
+        )
+        self.finished_keywords = (
+            shared_data.get("finished_keywords", {}) if shared_data else {}
+        )
+        self.WRITE_LOCK = shared_data.get("WRITE_LOCK") if shared_data else None
 
     # =============================================
     # Initilize selenium driver
@@ -410,6 +465,7 @@ class Scraper:
 
             self.open_url(google_map_url)
             print(f"Processing place {index + 1}/{len(results_feed)}")
+            info_logger.info(f"Processing place {index + 1}/{len(results_feed)}")
 
             card_data = BeautifulSoup(self._driver.page_source, "lxml")
 
@@ -484,29 +540,6 @@ class Scraper:
         else:
             self.full_results.extend(places_data)
         print(f"Scraped {len(places_data)} places.")
-
-    def save_results(self):
-        """
-        Save the in-memory full_results to a partial JSON file.
-        This is used in single_keyword mode to ensure results are combined correctly.
-        """
-        if not self.full_results:
-            return
-
-        output_dir = "partial_results"
-        os.makedirs(output_dir, exist_ok=True)
-        timestamp = int(time.time())
-        # Use a generic name for the single-keyword process
-        output_file = os.path.join(output_dir, f"results_single_{timestamp}.json")
-
-        try:
-            with open(output_file, "w", encoding="utf-8") as f:
-                json.dump(self.full_results, f, ensure_ascii=False, indent=2)
-            print(f"Saved {len(self.full_results)} results to {output_file}")
-            # Clear the in-memory list after saving
-            self.full_results.clear()
-        except Exception as e:
-            self.log_crash(f"Error saving results to {output_file}: {e}")
 
     # =============================================
     # Scraping places with multiple keywords
@@ -690,35 +723,35 @@ class Scraper:
     @classmethod
     def process_keyword(cls, args):
         """Class method to be called in a separate process"""
-        keyword_list, lat, long, country, process_id = args
+        keyword_list, current_sector, total_sectors, lat, long, process_id = args
 
         # Create a new scraper instance for this process
 
         output_file_list = []
 
-        for keywords in keyword_list:
-            scraper = cls()
-            try:
-                scraper.setup_driver()
+        print("*" * 50)
+        print("I'm in process keyword")
+        print("*" * 50)
+
+        scraper = cls()
+        try:
+            scraper.setup_driver()
+            scraper.load_previous_data()
+            for keywords in keyword_list:
                 # print("*" * 50)
                 # print(keywords)
                 # print("*" * 50)
                 for query in keywords:
-                    print("*" * 50)
-                    print(query)
-                    print("*" * 50)
+                    # print("*" * 50)
+                    # print(query)
+                    # print("*" * 50)
                     try:
                         print(
-                            f"[Process {process_id}] Searching using keyword: {query}"
+                            f"[Process {process_id}] Searching using keyword: {query} {current_sector}/{total_sectors}"
                         )
-
-                        # Check if the location is inside the country
-                        inside, near_lat, near_long = find_near_location(
-                            lat, long, country
+                        info_logger.info(
+                            f"[Process {process_id}] Searching using keyword: {query} {current_sector}/{total_sectors}"
                         )
-                        if not inside:
-                            lat, long = near_lat, near_long
-
                         # Load the search results for the sector
                         scraper.loading_search_results(query, lat, long)
 
@@ -728,7 +761,12 @@ class Scraper:
                         # Scrape results
                         scraper.scrape_results()
 
-                        print(f"[Process {process_id}] Completed search for: {query}")
+                        print(
+                            f"[Process {process_id}] Completed search for: {query} {current_sector}/{total_sectors}"
+                        )
+                        info_logger.info(
+                            f"[Process {process_id}] Completed search for: {query} {current_sector}/{total_sectors}"
+                        )
 
                         # Save the results to a JSON file
                         timestamp = int(time.time())
@@ -746,39 +784,38 @@ class Scraper:
                             )
                         output_file_list.append(output_file)
                         print(
-                            f"[Process {process_id}] Saved results to {output_file_list}"
+                            f"[Process {process_id}] Saved results to {len(output_file_list)} files {current_sector}/{total_sectors}"
+                        )
+                        info_logger.info(
+                            f"[Process {process_id}] Saved results to {len(output_file_list)} files {current_sector}/{total_sectors}"
                         )
 
                     except Exception as e:
-                        error_msg = f"Error processing keyword '{query}': {e}"
+                        error_msg = f"Error processing keyword '{query}': {e} {current_sector}/{total_sectors}"
                         print(f"[Process {process_id}] {error_msg}")
                         scraper.log_crash(error_msg)
                         continue
 
-                    time.sleep(2)
+        except Exception as e:
+            error_msg = f"Error processing keyword '{query}': {e} {current_sector}/{total_sectors}"
+            print(
+                f"[Process {process_id}] {error_msg} {current_sector}/{total_sectors}"
+            )
+            if "scraper" in locals():
+                scraper.log_crash(error_msg)
 
-            except Exception as e:
-                error_msg = f"Error processing keyword '{query}': {e}"
-                print(f"[Process {process_id}] {error_msg}")
-                if "scraper" in locals():
-                    scraper.log_crash(error_msg)
-
-            finally:
-                # Clean up the WebDriver
-                if (
-                    "scraper" in locals()
-                    and hasattr(scraper, "driver")
-                    and scraper._driver
-                ):
-                    try:
-                        scraper._driver.quit()
-                    except Exception as e:
-                        logger.error(f"Error quitting WebDriver: {e}")
+        finally:
+            # Clean up the WebDriver
+            if "scraper" in locals() and hasattr(scraper, "driver") and scraper._driver:
+                try:
+                    scraper._driver.quit()
+                except Exception as e:
+                    logger.error(f"Error quitting WebDriver: {e}")
 
         # Save the results to a process-specific file
         return output_file_list
 
-    def multi_keywords(self):
+    def multi_keywords(self, current_sector, total_sectors):
         process_args = []
         for i, group_list in enumerate(keywords_terms):
             group_name = f"Group_{i + 1}"
@@ -787,9 +824,10 @@ class Scraper:
             process_args.append(
                 (
                     group_list,
+                    current_sector,
+                    total_sectors,
                     self.current_lat,
                     self.current_long,
-                    self.country,
                     process_id,
                 )
             )
@@ -824,7 +862,6 @@ class Scraper:
     # Scraping places with one keyword
     # =============================================
 
-    # TODO: save_results duplicate the data
     def save_results(self):
         os.makedirs("output", exist_ok=True)
         csv_file = f"output/{self.governorate}.csv"
@@ -979,7 +1016,7 @@ class Scraper:
             )
 
             if CONFIG["multi_keywords"]:
-                self.multi_keywords()
+                self.multi_keywords(idx, len(sectors_list))
             else:
                 # print("*" * 50)
                 # print("Single keyword")
@@ -993,6 +1030,23 @@ if __name__ == "__main__":
     scraper = Scraper()
     scraper.setup_driver()
 
+    if CONFIG["multi_keywords"]:
+        manager = Manager()
+        WRITE_LOCK = manager.Lock()
+
+        # Initialize the scraper with shared data
+        shared_data = {
+            "manager": manager,
+            "full_results": manager.list(),
+            "searched": manager.dict(),
+            "searched_governorate": manager.dict(),
+            "finished_keywords": manager.dict(),
+            "WRITE_LOCK": WRITE_LOCK,
+        }
+        multiprocessing.freeze_support()
+
+        scraper._multi_keywords_init_(shared_data=shared_data)
+
     with open("governorates_bounds.json", "r", encoding="utf-8") as f:
         governorate_list = json.load(f)
 
@@ -1001,14 +1055,6 @@ if __name__ == "__main__":
 
     total_governorates = len(governorates)
 
-    ## NOTE: Testing getters and setters
-    # print(scraper.country)
-    # print(scraper.governorate)
-    # print(scraper.current_lat)
-    # print(scraper.current_lng)
-    # print(scraper._starter_lat)
-    # print(scraper._starter_long)
-    # print(CONFIG["multi_keywords"])
     try:
         for idx, governorate in enumerate(governorates):
             print(governorate)

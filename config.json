@@ -1,6 +1,6 @@
 {
     "country": "Egypt", 
-    "multi_keywords": false,
+    "multi_keywords": true,
     "step_lat": 0.07,
     "step_long": 0.1,
     "start_sector_idx": 0,
