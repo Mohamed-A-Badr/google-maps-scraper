@@ -6,7 +6,7 @@ NOTE
     - [X] governorate
     - [] total_sectors
     - [] manager
-    - [] full_results
+    - [X] full_results
     - [] searched_governorate
     - [] finished_keywords
     - [] WRITE_LOCK
@@ -140,14 +140,6 @@ class Scraper:
     @search_tracker.setter
     def search_tracker(self, value):
         self._search_tracker = value
-
-    # @property
-    # def full_results(self):
-    #     return self._full_results
-
-    # @full_results.setter
-    # def full_results(self, value):
-    #     self._full_results = value
 
     @property
     def searched(self):

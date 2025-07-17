@@ -5,6 +5,7 @@ import multiprocessing
 import os
 import random
 import re
+import secrets
 import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -116,12 +117,12 @@ class Scraper:
     @classmethod
     def process_keyword(cls, args):
         """Class method to be called in a separate process"""
-        keyword_list, lat, lng, country, process_id = args
+        keyword_list, idx, total, lat, lng, country, process_id = args
 
         # Create a new scraper instance for this process
 
         output_file_list = []
-        
+
         for keywords in keyword_list:
             scraper = cls()
             try:
@@ -135,7 +136,10 @@ class Scraper:
                     # print("*" * 50)
                     try:
                         print(
-                            f"[Process {process_id}] Searching using keyword: {query} at lat: {lat}, lng: {lng}"
+                            f"[Process {process_id}] Searching using keyword: {query} at lat: {lat}, lng: {lng} sector {idx}/{total}"
+                        )
+                        scraper.log_crash(
+                            f"Searching using keyword: {query} at lat: {lat}, lng: {lng} sector {idx}/{total}"
                         )
 
                         # Load the search results for the sector
@@ -165,11 +169,11 @@ class Scraper:
                             )
                         output_file_list.append(output_file)
                         print(
-                            f"[Process {process_id}] Saved results to {output_file_list}"
+                            f"[Process {process_id}] Saved results to {len(output_file_list)} files"
                         )
 
                     except Exception as e:
-                        error_msg = f"Error processing keyword '{query}': {e}"
+                        error_msg = f"Error processing keyword '{query}': {e} sector {idx}/{total}"
                         print(f"[Process {process_id}] {error_msg}")
                         scraper.log_crash(error_msg)
                         continue
@@ -177,7 +181,9 @@ class Scraper:
                     time.sleep(2)
 
             except Exception as e:
-                error_msg = f"Error processing keyword '{query}': {e}"
+                error_msg = (
+                    f"Error processing keyword '{query}': {e} sector {idx}/{total}"
+                )
                 print(f"[Process {process_id}] {error_msg}")
                 if "scraper" in locals():
                     scraper.log_crash(error_msg)
@@ -300,7 +306,7 @@ class Scraper:
             print(f"Error finding zoom out button: {e}")
             self.log_crash(f"Error finding zoom out button at lat: {lat}, lng: {lng}")
             return
-        
+
         try:
             zoom_out_button.click()
         except (TimeoutException, Exception) as e:
@@ -677,97 +683,27 @@ class Scraper:
         print("Browser restarted and searched places reloaded.")
         print("=" * 50)
 
-    def move_over_sectors(
-        self,
-        governorate,
-        min_lat,
-        max_lat,
-        min_lng,
-        max_lng,
-        start_lat,
-        start_lng,
-        lat_step=0.07,
-        lng_step=0.1,
-    ):
-        self._governorate_name = governorate
+    def generate_sectors(
+        self, min_lat, max_lat, min_lng, max_lng, step_lat, step_long
+    ) -> list:
+        sectors = []
 
         find_max_lng = False
         find_max_lat = False
 
-        sectors = 0
-        # num_of_sectors_before_pause = 10
-        # num_of_sectors_before_restarting = 100
-
-        # Start the lat where we end before close the script or got crashed
-        if self.first_coord_loop_lat:
-            lat = start_lat
-            self.first_coord_loop_lat = False
-        else:
-            lat = min_lat
-
+        lat = min_lat
         while lat <= max_lat:
-
-            # Start the lng where we end before close the script or got crashed
-            if self.first_coord_loop_lng:
-                lng = start_lng
-                self.first_coord_loop_lng = False
-            else:
-                lng = min_lng
-
+            lng = min_lng
             while lng <= max_lng:
-                self.current_lat = lat
-                self.current_lng = lng
-
-                print(
-                    f"Searching sector {sectors + 1}: Lat {lat}, Lng {lng} ({self._governorate_name}, {self.country[0]})"
-                )
-                # Process each keyword group
-
-                # Check if the location is inside the country
                 inside, near_lat, near_long = find_near_location(
                     lat, lng, self.country[0]
                 )
+                if inside:
+                    sectors.append((lat, lng))
+                else:
+                    sectors.append((near_lat, near_long))
 
-                process_args = []
-                for i, group_list in enumerate(keywords_terms):
-                    group_name = f"Group_{i + 1}"
-                    process_id = f"{group_name}_{i}"
-
-                    process_args.append(
-                        (group_list, lat if inside else near_lat, lng if inside else near_long, self.country[0], process_id)
-                    )
-
-                os.makedirs("partial_results", exist_ok=True)
-
-                with ProcessPoolExecutor(max_workers=3) as executor:
-                    future_to_query = {
-                        executor.submit(self.process_keyword, args): args[0]
-                        for args in process_args
-                    }
-                    for future in as_completed(future_to_query):
-                        query = future_to_query[future]
-                        try:
-                            result_file_list = future.result()
-                            if result_file_list:
-                                print(f"Successfully processed query: {query}")
-                                print(f"Results saved to: {result_file_list}")
-                            else:
-                                print(f"Warning: Failed to process query: {query}")
-                        except Exception as e:
-                            print(f"Error processing query {query}: {e}")
-                            self.log_crash(f"Error processing query {query}: {e}")
-
-                # After completing a sector, combine the results
-                print("Combining results...")
-                Scraper.combine_results(self._governorate_name)
-                print(f"Completed processing sector: {group_name}")
-                print("=" * 50)
-
-                lng += lng_step
-                sectors += 1
-                self.total_sectors += 1
-
-                # check if we reached the max longitude
+                lng += step_long
                 epsilon = 1e-6
                 if not find_max_lng:
                     if abs(lng - max_lng) < epsilon:
@@ -775,9 +711,8 @@ class Scraper:
                     elif lng > max_lng:
                         lng = max_lng
                         find_max_lng = True
- 
-            lat += lat_step
 
+            lat += step_lat
             epsilon = 1e-6
             if not find_max_lat:
                 if abs(lat - max_lat) < epsilon:
@@ -785,6 +720,75 @@ class Scraper:
                 elif lat > max_lat:
                     lat = max_lat
                     find_max_lat = True
+
+        return sectors
+
+    def move_over_sectors(
+        self,
+        governorate,
+        sectors_list,
+        start_sector_idx=0,
+    ):
+        self._governorate_name = governorate
+
+        for idx, sector in enumerate(sectors_list):
+            if idx < start_sector_idx:
+                continue
+
+            self.current_lat, self.current_long = sector
+
+            print(
+                f" 📍 Searching sector {idx}/{len(sectors_list) - 1}: Lat {self.current_lat}, long {self.current_long} ({governorate}, {self.country[0]})"
+            )
+            self.log_crash(
+                f"Searching sector {idx}/{len(sectors_list) - 1}: {governorate}, {self.country[0]} (Lat {self.current_lat}, long {self.current_long})"
+            )
+            process_args = []
+            for i, group_list in enumerate(keywords_terms):
+                group_name = f"Group_{i + 1}"
+                process_id = f"{group_name}_{i}"
+
+                process_args.append(
+                    (
+                        group_list,
+                        idx,
+                        len(sectors_list) - 1,
+                        self.current_lat,
+                        self.current_long,
+                        self.country[0],
+                        process_id,
+                    )
+                )
+
+            os.makedirs("partial_results", exist_ok=True)
+
+            with ProcessPoolExecutor(max_workers=3) as executor:
+                future_to_query = {
+                    executor.submit(self.process_keyword, args): args[0]
+                    for args in process_args
+                }
+                for future in as_completed(future_to_query):
+                    query = future_to_query[future]
+                    try:
+                        result_file_list = future.result()
+                        if result_file_list:
+                            print(f"Successfully processed query: {query}")
+                            print(f"Results saved to: {result_file_list}")
+                        else:
+                            print(f"Warning: Failed to process query: {query}")
+                            self.log_crash(
+                                f"Failed to process query {query} sector {idx}/{len(sectors_list)}"
+                            )
+                    except Exception as e:
+                        print(f"Error processing query {query}: {e}")
+                        self.log_crash(
+                            f"Error processing query {query}: {e} sector {idx}/{len(sectors_list)}"
+                        )
+
+                print("Combining results...")
+                Scraper.combine_results(self._governorate_name)
+                print(f"Completed processing sector: {group_name}")
+                print("=" * 50)
 
     def get_governorates_data(self, country="Egypt"):
         """
@@ -844,7 +848,7 @@ if __name__ == "__main__":
         # Process each governorate sequentially
         cnt = 1
         for idx, governorate in enumerate(governorates):
-            if governorate['governorate'] != "الإسماعيلية":
+            if governorate["governorate"] != "القاهرة":
                 continue
 
             print(governorate["governorate"])
@@ -861,16 +865,26 @@ if __name__ == "__main__":
             print(
                 f"\nProcessing governorate {idx}/{total_governorates}: {governorate_name}"
             )
+            logger.info(
+                f"Processing governorate {idx}/{total_governorates}: {governorate_name}"
+            )
 
-            # Move over sectors for this governorate
-            scraper.move_over_sectors(
-                governorate=governorate_name,
+            sectors_list = scraper.generate_sectors(
                 min_lat=governorate["min_lat"],
                 max_lat=governorate["max_lat"],
                 min_lng=governorate["min_long"],
                 max_lng=governorate["max_long"],
-                start_lat=governorate["min_lat"],
-                start_lng=32.12,
+                step_lat=0.07,
+                step_long=0.1,
+            )
+
+            print(f"Generated {len(sectors_list)} sectors for {governorate_name}")
+
+            # Move over sectors for this governorate
+            scraper.move_over_sectors(
+                governorate=governorate_name,
+                sectors_list=sectors_list,
+                start_sector_idx=0,
             )
 
             print(f"Completed processing governorate: {governorate_name}")
@@ -879,23 +893,24 @@ if __name__ == "__main__":
             if idx < total_governorates:
                 print("Waiting before processing next governorate...")
                 time.sleep(5)
-            
+
             break
         end_time = time.perf_counter()
         print(
-            f"Script execution completed. Total time: {(end_time - start_time)/60:.2f} minutes"
+            f"Script execution completed. Total time: {(end_time - start_time) / 60:.2f} minutes"
         )
     except KeyboardInterrupt:
         print("\nScript interrupted by user. Combining results...")
         end_time = time.perf_counter()
         print(
-            f"Script execution completed. Total time: {(end_time - start_time)/60:.2f} minutes"
+            f"Script execution completed. Total time: {(end_time - start_time) / 60:.2f} minutes"
         )
+        scraper.log_crash("Script interrupted by user.")
     except Exception as e:
         print(f"\nAn error occurred: {e}")
         end_time = time.perf_counter()
         print(
-            f"Script execution completed. Total time: {(end_time - start_time)/60:.2f} minutes"
+            f"Script execution completed. Total time: {(end_time - start_time) / 60:.2f} minutes"
         )
         scraper.log_crash(f"Script crashed with error: {e}")
     finally:
@@ -911,5 +926,5 @@ if __name__ == "__main__":
 
         end_time = time.perf_counter()
         print(
-            f"Script execution completed. Total time: {(end_time - start_time)/60:.2f} minutes"
+            f"Script execution completed. Total time: {(end_time - start_time) / 60:.2f} minutes"
         )
