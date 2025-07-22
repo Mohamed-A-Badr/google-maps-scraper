@@ -1,5 +1,6 @@
 import csv
 import os
+import json
 
 import pandas as pd
 
@@ -8,134 +9,8 @@ from data_scraper import Scraper
 os.makedirs("cleaned_data", exist_ok=True)
 os.makedirs("cleaned_data/final_csv", exist_ok=True)
 
-UNWANTED_CATEGORY = [
-    # "أخصائي تخاطب",
-    # "أخصائي علم نفس",
-    # "أخصائي تغذية",
-    "خدمة ترجمة",
-    "دار القطط",
-    "متجر بيع عبوات حبر الطابعات",
-    "خدمة وسائل النقل",
-    "خدمة إصلاح زجاج سيارات",
-    "تنظيف جاف للملابس",
-    "استوديو التصوير الفوتوغرافي",
-    "استوديو تصوير فوتوغرافي",
-    "النادي الاجتماعي",
-    "محل بصريات",
-    "محل صور",
-    "محل نسخ المستندات",
-    "مركز تدريب",
-    "مركز تنظيم الأسرة",
-    "مركز مؤتمرات",
-    "مركز تأمين",
-    "جمعية / منظمة",
-    "محل طباعة",
-    "مدرسة تعليم خاص",
-    "مركز الفنون",
-    "مركز تسوق",
-    "مركز ثقافي",
-    "مركز صيانة سيارات",
-    "مصوّر",
-    "ميكانيكي",
-    "مؤسسة تعليمية",
-    "ورشة إصلاح سيارات",
-    "وكالة إعلانية",
-    "وكالة تسويق",
-    "مصرف",
-    "مصمم رسومات",
-    "مصور فوتوغرافي تجاري",
-    "مطبعة",
-    "معمل صور",
-    "مقهى إنترنت",
-    "خدمة الكتابة والطباعة",
-    "تصليح سيارات",
-    "تصوير",
-    "خدمة تغيير الزيت",
-    "خدمة كهرباء سيارات",
-    "سوبرماركت",
-    "صالة عرض",
-    "صالون تجميل",
-    "غرفة لياقة",
-    "مبنى سكني",
-    "متجر حيوانات أليفة",
-    "مجمع سكني",
-    "محام عام",
-    "معلم/ة تربية خاصة",
-    "Massage spa",
-    "المركز التعليمي",
-    "بنك ادخار",
-    "خدمة تنظيف المفروشات",
-    "سوق",
-    "جامعة",
-    "حديقة",
-    "حمام",
-    "خدمة استكشاف الغاز والبترول",
-    "مركز ثقافي اجتماعي",
-    "خدمة التسويق عبر الإنترنت",
-    "مكتب ترخيص الزواج",
-    "نقابة العمال",
-    "خدمة معاملات تجارية بين الشركات",
-    "رعاية صحية في المنزل",
-    "شركة أتمتة",
-    "طابعة رقمية",
-    "متجر أجهزة إلكترونية",
-    "متجر أحذية",
-    "متجر بقالة",
-    "متجر للزي الموحد",
-    "متجر مستلزمات الغاز",
-    "مجمع عمارات",
-    "متجر مستلزمات مكتبية",
-    "محطة حافلات",
-    "مركز المدارس",
-    "مسجد",
-    "مصنع كيماويات",
-    "معرض صغير",
-    "مغسلة",
-    "مكتبة",
-    "مهندس ميكانيكي",
-    "مورد سيارات بي إم دبليو",
-    "ميكانيكي هياكل السيارات",
-    "ورشة إصلاح شاحنات",
-    "وكالة تأجير معدات",
-    "وكالة تجارة إلكترونية",
-    "مقهى إنترنت",
-    "ورشة إصلاح سيارات",
-    "وكالة تسويق",
-    "خدمة تصوير فوتوغرافي",
-    "خدمة تغيير الزيت",
-    "خدمة ضبط السيارات",
-    "خدمة طباعة رقمية",
-    "خدمة فقدان الوزن",
-    "رياض أطفال",
-    "ساحة إقلاع وهبوط طائرات الهليكوبتر",
-    "سوبرماركت",
-    "شركة إتصالات",
-    "صالة رياضة",
-    "صالة عرض",
-    "غرفة لياقة",
-    "فندق منتجع",
-    "متجر إطارات",
-    "متجر أثاث",
-    "متجر أجهزة كمبيوتر",
-    "متجر أدوات مكتبية",
-    "متجر طعام صحي",
-    "متجر الأجهزة المساعدة على السماع",
-    "محطة فحص سيارات",
-    "محل إصلاح كاميرات",
-    "مُجلِّد كتب",
-    "متجر مستحضرات الصحة والتجميل",
-    "متجر كاميرات",
-    "متجر قطع غيار سيارات",
-    "متجر بيع عبوات حبر الطابعات",
-    "مكتبة عامة",
-    "مكتب الشركات",
-    "مطعم",
-    "مصور زفاف",
-    "مركز خدمات الأسرة",
-    "متجر مواد بناء",
-    "موقف سيارات",
-    "موقع تصوير",
-]
+with open("category.json", "r", encoding="utf-8") as f:
+    UNWANTED_CATEGORY = json.load(f)
 
 
 def remove_duplicate(csv_file):
@@ -189,7 +64,12 @@ def remove_location_not_in_governorate(csv_file, governorate):
         df.apply(
             lambda row: any(
                 keyword in str(row["address"])
-                for keyword in [governorate, "دمياط", "Damietta", "damietta"]
+                for keyword in [
+                    governorate,
+                    "قنا",
+                    "qena",
+                    "Qena",
+                ]
             ),
             axis=1,
         )
@@ -223,24 +103,22 @@ def clean_phone_number(csv_file, gov_name):
 
 
 if __name__ == "__main__":
-    csv_file = "output/القاهرة.csv"
+    csv_file = "output/places_data_قنا.csv"
 
-    remove_duplicate(csv_file)
-    print("Duplicated data removed!")
+    # remove_duplicate(csv_file)
+    # print("Duplicated data removed!")
 
     # rescrape_none_value_row("cleaned_data/stage_1_no_duplicate.csv")
     # print("None value row rescraped!")
 
-    # add_governorate_value("cleaned_data/stage_1_no_duplicate.csv", "دمياط")
-    # print("Governorate value added!")
+    add_governorate_value("cleaned_data/stage_1_no_duplicate.csv", "قنا")
+    print("Governorate value added!")
 
-    # remove_location_not_in_governorate(
-    #     "cleaned_data/stage_2_governorate.csv", "دمياط"
-    # )
-    # print("Location not in governorate removed!")
+    remove_location_not_in_governorate("cleaned_data/stage_2_governorate.csv", "قنا")
+    print("Location not in governorate removed!")
 
-    # remove_unwanted_data("cleaned_data/stage_3_location_cleaned.csv")
-    # print("Unwanted data removed!")
+    remove_unwanted_data("cleaned_data/stage_3_location_cleaned.csv")
+    print("Unwanted data removed!")
 
-    # clean_phone_number("cleaned_data/stage_4_unwanted_data_removed.csv", "Damietta")
-    # print("Phone number cleaned!")
+    clean_phone_number("cleaned_data/stage_4_unwanted_data_removed.csv", "Qena")
+    print("Phone number cleaned!")

@@ -62,8 +62,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from is_inside_country import find_near_location
 from keywords import keywords_terms
+from logger import info_logger, logger
 from search_tracker import get_search_tracker
-from logger import logger, info_logger
+from sector_generator import generate
 
 USER_AGENTS = [
     # Chrome Desktop
@@ -282,6 +283,7 @@ class Scraper:
         print("*" * 50)
         print(f"Loading data for {self.country}...")
 
+        # info_logger.info(f"{self.governorate}, {self.country}")
         # Initialize search tracker for this country
         self.search_tracker = get_search_tracker(self.country, self.governorate)
 
@@ -449,7 +451,7 @@ class Scraper:
         results_feed = soup.find_all("a", class_="hfpxzc")
 
         for index, i in enumerate(results_feed):
-            if (index + 1) % 50 == 0:
+            if (index + 1) % 50 == 0 and not CONFIG["multi_keywords"]:
                 self.restart_browser()
 
             google_map_url = i.get("href")
@@ -587,10 +589,9 @@ class Scraper:
         Combine all partial result files into final output files.
         Appends new results to existing files while avoiding duplicates.
         """
-        governorate = gov_name.lower().replace(" ", "_")
         output_dir = "partial_results"
-        output_csv = f"output/places_data_{governorate}.csv"
-        output_json = f"output/places_data_{governorate}.json"
+        output_csv = f"output/places_data_{gov_name}.csv"
+        output_json = f"output/places_data_{gov_name}.json"
 
         if not os.path.exists(output_dir):
             print("No partial results directory found.")
@@ -1068,19 +1069,21 @@ if __name__ == "__main__":
 
             print(f"\nProcessing governorate {idx}/{total_governorates}: {governorate}")
 
-            sectors_list = scraper.generate_sectors(
-                min_lat=governorate["min_lat"],
-                max_lat=governorate["max_lat"],
-                min_long=governorate["min_long"],
-                max_long=governorate["max_long"],
-                step_lat=CONFIG["step_lat"],
-                step_long=CONFIG["step_long"],
-            )
+            # sectors_list = scraper.generate_sectors(
+            #     min_lat=governorate["min_lat"],
+            #     max_lat=governorate["max_lat"],
+            #     min_long=governorate["min_long"],
+            #     max_long=governorate["max_long"],
+            #     step_lat=CONFIG["step_lat"],
+            #     step_long=CONFIG["step_long"],
+            # )
 
             # print(f"Generated {len(sectors_list)} sectors for {scraper.governorate}")
             # print(sectors_list)
 
             # exit()
+
+            sectors_list = generate(governorate=scraper.governorate)
 
             # Move over sectors for this governorate
             scraper.move_over_sectors(

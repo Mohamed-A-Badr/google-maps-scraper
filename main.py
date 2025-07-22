@@ -27,6 +27,8 @@ from is_inside_country import find_near_location
 from keywords import keywords_terms
 from search_tracker import get_search_tracker
 
+from sector_generator import generate
+
 log_file = "exception.log"
 if not os.path.exists(log_file):
     with open(log_file, "w") as f:
@@ -703,22 +705,19 @@ class Scraper:
                     sectors.append((near_lat, near_long))
 
                 lng += step_long
-                epsilon = 1e-6
                 if not find_max_lng:
-                    if abs(lng - max_lng) < epsilon:
-                        find_max_lng = True
-                    elif lng > max_lng:
+                    if lng > max_lng:
                         lng = max_lng
                         find_max_lng = True
 
             lat += step_lat
-            epsilon = 1e-6
             if not find_max_lat:
-                if abs(lat - max_lat) < epsilon:
-                    find_max_lat = True
-                elif lat > max_lat:
+                if lat > max_lat:
                     lat = max_lat
                     find_max_lat = True
+
+        if (max_lat, max_lng) not in sectors:
+            sectors.append((max_lat, max_lng))
 
         return sectors
 
@@ -847,7 +846,7 @@ if __name__ == "__main__":
         # Process each governorate sequentially
         cnt = 1
         for idx, governorate in enumerate(governorates):
-            if governorate["governorate"] != "القاهرة":
+            if governorate["governorate"] != "الغربية":
                 continue
 
             print(governorate["governorate"])
@@ -868,14 +867,16 @@ if __name__ == "__main__":
                 f"Processing governorate {idx}/{total_governorates}: {governorate_name}"
             )
 
-            sectors_list = scraper.generate_sectors(
-                min_lat=governorate["min_lat"],
-                max_lat=governorate["max_lat"],
-                min_lng=governorate["min_long"],
-                max_lng=governorate["max_long"],
-                step_lat=0.07,
-                step_long=0.1,
-            )
+            # sectors_list = scraper.generate_sectors(
+            #     min_lat=governorate["min_lat"],
+            #     max_lat=governorate["max_lat"],
+            #     min_lng=governorate["min_long"],
+            #     max_lng=governorate["max_long"],
+            #     step_lat=0.07,
+            #     step_long=0.1,
+            # )
+
+            sectors_list = generate(governorate=governorate_name)
 
             print(f"Generated {len(sectors_list)} sectors for {governorate_name}")
 
