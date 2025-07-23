@@ -66,9 +66,11 @@ def remove_location_not_in_governorate(csv_file, governorate):
                 keyword in str(row["address"])
                 for keyword in [
                     governorate,
-                    "قنا",
-                    "qena",
-                    "Qena",
+                    "الغربية",
+                    "غربية",
+                    "طنطا",
+                    "Gharbia",
+                    "gharbia",
                 ]
             ),
             axis=1,
@@ -103,7 +105,7 @@ def clean_phone_number(csv_file, gov_name):
 
 
 if __name__ == "__main__":
-    csv_file = "output/places_data_قنا.csv"
+    csv_file = "output/places_data_الغربية.csv"
 
     # remove_duplicate(csv_file)
     # print("Duplicated data removed!")
@@ -111,14 +113,16 @@ if __name__ == "__main__":
     # rescrape_none_value_row("cleaned_data/stage_1_no_duplicate.csv")
     # print("None value row rescraped!")
 
-    add_governorate_value("cleaned_data/stage_1_no_duplicate.csv", "قنا")
+    add_governorate_value("cleaned_data/stage_1_no_duplicate.csv", "الغربية")
     print("Governorate value added!")
 
-    remove_location_not_in_governorate("cleaned_data/stage_2_governorate.csv", "قنا")
+    remove_location_not_in_governorate(
+        "cleaned_data/stage_2_governorate.csv", "الغربية"
+    )
     print("Location not in governorate removed!")
 
     remove_unwanted_data("cleaned_data/stage_3_location_cleaned.csv")
     print("Unwanted data removed!")
 
-    clean_phone_number("cleaned_data/stage_4_unwanted_data_removed.csv", "Qena")
+    clean_phone_number("cleaned_data/stage_4_unwanted_data_removed.csv", "Gharbia")
     print("Phone number cleaned!")

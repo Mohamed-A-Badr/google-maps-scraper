@@ -846,7 +846,7 @@ if __name__ == "__main__":
         # Process each governorate sequentially
         cnt = 1
         for idx, governorate in enumerate(governorates):
-            if governorate["governorate"] != "الغربية":
+            if governorate["governorate"] != "بني سويف":
                 continue
 
             print(governorate["governorate"])
